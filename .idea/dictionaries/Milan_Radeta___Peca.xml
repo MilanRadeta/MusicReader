@@ -2,8 +2,12 @@
   <dictionary name="Milan Radeta - Peca">
     <words>
       <w>binarization</w>
+      <w>filenames</w>
+      <w>filepath</w>
+      <w>filepaths</w>
       <w>grayscale</w>
       <w>otsu</w>
+      <w>staves</w>
     </words>
   </dictionary>
 </component>

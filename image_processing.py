@@ -78,10 +78,9 @@ def display_image(image, color=False):
     plt.show()
 
 
-def resize_image(image, new_width, new_height):
+def resize_image(image, size):
     """Resize image to desired size
     :param image:
-    :param new_width:
-    :param new_height:
+    :param size:
     """
-    return cv2.resize(image, (int(round(new_width)), int(round(new_height))), interpolation=cv2.INTER_CUBIC)
+    return cv2.resize(image, size, interpolation=cv2.INTER_CUBIC)

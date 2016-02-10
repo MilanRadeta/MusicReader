@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from staff_lines import find_lines, remove_lines
+
 HORIZONTAL_PROJECTION = 0
 VERTICAL_PROJECTION = 1
 
@@ -77,3 +79,31 @@ def crop_image(image, crop_start=None, crop_width=None):
 
     cutoff = np.array(crop, dtype=np.uint8)
     return cutoff
+
+
+def open_image_vertically(image, staff_spacing=None):
+    """Morphological opening of image with vertical line kernel
+    :param image:
+    :param staff_spacing:
+    """
+    if staff_spacing is None:
+        # Find lines, distances
+        staff_spacing = find_lines(image)[2]
+
+    # Find vertical objects
+    return open_image(remove_lines(image),
+                      np.ones((int(round(1.5 * staff_spacing)), 1)))
+
+
+def image_subtract(image1, image2):
+    """Return image that contains only white pixels from
+    the first image, but not from the second image
+    :param image2:
+    :param image1:
+    """
+    ret_image = image1.copy()
+    image_height, image_width = ret_image.shape[:2]
+    for row in range(image_height):
+        for col in range(image_width):
+            if image2[row, col] == 255:
+                ret_image[row, col] = 0
