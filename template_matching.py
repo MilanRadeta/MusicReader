@@ -1,6 +1,5 @@
-from os import listdir
-
-from image_processing import *
+import os
+import image_processing as imp
 
 
 def search_for_templates(template_filepaths):
@@ -18,9 +17,9 @@ def search_for_templates(template_filepaths):
 
     for filename in filenames:
         split = filename.split('/')
-        for listedFile in listdir("templates"):
+        for listedFile in os.listdir("templates"):
             if listedFile == split[0]:
-                for innerFile in listdir("templates/%s" % listedFile):
+                for innerFile in os.listdir("templates/%s" % listedFile):
                     if len(split) == 1 or innerFile.startswith(split[1]):
                         templates += ["templates/%s/%s" % (listedFile, innerFile)]
         return templates
@@ -89,11 +88,11 @@ def make_template_images(template_filepaths, size=None):
     """
     templates = {}
     for filepath in template_filepaths:
-        template = load_image(filepath)
+        template = imp.load_image(filepath)
         if size is not None:
-            template = resize_image(template, size)
-        template = image_gray(template)
-        template = image_bin_otsu(template)
-        template = invert(template)
+            template = imp.resize_image(template, size)
+        template = imp.image_gray(template)
+        template = imp.image_bin_otsu(template)
+        template = imp.invert(template)
         templates[filepath] = template
     return templates

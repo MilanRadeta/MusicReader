@@ -1,6 +1,5 @@
 import numpy as np
-
-from image_operations import open_image_vertically
+import image_operations as imo
 
 
 def add_region(image, row, col, regions, pixel_span=1):
@@ -111,7 +110,8 @@ def find_vertical_regions(image, image_vertical_lines=None,
     :param pixel_span:
     """
     if image_vertical_lines is None:
-        image_vertical_lines = open_image_vertically(image, staff_spacing)
+        image_vertical_lines = imo.open_image_vertically(
+            image, staff_spacing)
     return find_regions(image, image_vertical_lines, pixel_span=pixel_span)
 
 

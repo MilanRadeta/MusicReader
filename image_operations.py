@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
-
-from staff_lines import find_lines, remove_lines
+import staff_lines as sl
 
 HORIZONTAL_PROJECTION = 0
 VERTICAL_PROJECTION = 1
@@ -31,7 +30,7 @@ def open_image(image, kernel=None):
     :param kernel:
     """
     if kernel is None:
-        kernel = np.ones((1, 100))
+        kernel = np.ones((1, 20))
     return dilate(erode(image, kernel), kernel)
 
 
@@ -51,7 +50,7 @@ def project_image(image, projection=HORIZONTAL_PROJECTION):
             projection_sum += image[i if projection == HORIZONTAL_PROJECTION else j,
                                     j if projection == HORIZONTAL_PROJECTION else i] == 255
         projected_image.append([255] * projection_sum + [0] * (second_limit - projection_sum))
-    return np.uint8(np.array(projected_image))
+    return projected_image
 
 
 def crop_image(image, crop_start=None, crop_width=None):
@@ -60,8 +59,6 @@ def crop_image(image, crop_start=None, crop_width=None):
     :param crop_start:
     :param crop_width:
     """
-    if crop_width is None:
-        crop_width = len(image[0]) // 10
 
     if crop_start is None:
         end = 0
@@ -70,29 +67,29 @@ def crop_image(image, crop_start=None, crop_width=None):
             if s > end:
                 end = s
 
+        if crop_width is None:
+            crop_width = end // 3
+
         crop_start = end - crop_width
 
-    crop = image.copy()
+    if crop_width is None:
+        crop_width = len(image[0]) // 10
+
+    crop = image[:]
 
     for i in range(len(crop)):
         crop[i] = crop[i][crop_start:(crop_start + crop_width)]
 
-    cutoff = np.array(crop, dtype=np.uint8)
-    return cutoff
+    crop = np.array(crop, dtype=np.uint8)
+    return crop
 
 
-def open_image_vertically(image, staff_spacing=None):
+def open_image_vertically(image, staff_spacing):
     """Morphological opening of image with vertical line kernel
     :param image:
     :param staff_spacing:
     """
-    if staff_spacing is None:
-        # Find lines, distances
-        staff_spacing = find_lines(image)[2]
-
-    # Find vertical objects
-    return open_image(remove_lines(image),
-                      np.ones((int(round(1.5 * staff_spacing)), 1)))
+    return open_image(image, np.ones((int(round(1.5 * staff_spacing)), 1)))
 
 
 def image_subtract(image1, image2):

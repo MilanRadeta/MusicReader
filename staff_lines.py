@@ -1,21 +1,53 @@
-from image_operations import project_image, crop_image, open_image
+import numpy as np
+import image_operations as imo
 
 
-def find_lines(image):
+def find_lines(image, projection=True, horizontal_opening=True):
     """Recognize staff lines on image and return them
     as a list of lists of lists of row numbers,
     distances between them and average staff spacing.
-    :param image: """
-    first = get_white_rows(crop_image(project_image(image)))
-    second = get_white_rows(open_image(image))
+    :param image:
+    :param projection:
+    :param horizontal_opening:
+    """
 
-    lines, line_distances, staff_distances =\
-        group_rows(intersect_lists(first, second))
+    first = None
+    second = None
+    if projection:
+        first = get_white_rows(imo.crop_image(
+            imo.project_image(image)))
+    if horizontal_opening:
+        if projection:
+            line_distances = group_rows(first)[1]
+            avg_staff_spacing = []
+            for staff_line_distances in line_distances:
+                avg_staff_spacing += staff_line_distances
+            avg_staff_spacing = sum(avg_staff_spacing) * 1. / len(avg_staff_spacing)
+            second = get_white_rows(imo.open_image(image, np.ones((1, 2 * avg_staff_spacing))))
+        else:
+            second = get_white_rows(imo.open_image(image, np.ones((1, 20))))
+
+    if projection and horizontal_opening:
+        image_lines = intersect_lists(first, second)
+    elif projection:
+        image_lines = first
+    elif horizontal_opening:
+        image_lines = second
+    else:
+        raise Exception("To find lines either horizontal projection"
+                        "of the image must be done or a horizontal"
+                        "morphological opening")
+
+    lines, line_distances, staff_distances = \
+        group_rows(image_lines)
     avg_staff_spacing = []
     for staff_line_distances in line_distances:
         avg_staff_spacing += staff_line_distances
     avg_staff_spacing = sum(avg_staff_spacing) * 1. / len(avg_staff_spacing)
-    avg_staff_distance = sum(staff_distances) * 1. / len(staff_distances)
+    if len(staff_distances) > 0:
+        avg_staff_distance = sum(staff_distances) * 1. / len(staff_distances)
+    else:
+        avg_staff_distance = 0
     return lines, line_distances, avg_staff_spacing, staff_distances, avg_staff_distance
 
 
@@ -44,7 +76,7 @@ def intersect_lists(first, second):
     return ret_val
 
 
-def group_rows(rows):
+def group_rows(rows, tolerance = 3):
     """Group white rows by staves and staff lines
     :param rows:
     """
@@ -67,9 +99,14 @@ def group_rows(rows):
                     labels[-1].append([])
                     line_distances[-1] += [row - prev_row]
                 else:
-                    # Add another staff and add list
-                    # of line distances for that staff
+                    #avg_line_distances = sum(line_distances[-1]) / 4.
+                    #for distance in line_distances[-1]:
+                    #    diff = abs(avg_line_distances - distance)
+                    # Add another staff
                     labels.append([])
+                    # Add a new line to it
+                    labels[-1].append([])
+                    # Add list of line distances for that staff
                     line_distances.append([])
                     staff_distances += [row - prev_row]
 
