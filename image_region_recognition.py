@@ -2,7 +2,7 @@ import numpy as np
 import image_operations as imo
 
 
-def add_region(image, row, col, regions, pixel_span=1):
+def add_region(image, row, col, regions, pixel_span=2):
     """Search image for region containing white pixels
     at designated row and col and add it to found regions.
     If during the search white pixels that are already
@@ -55,7 +55,7 @@ def add_region(image, row, col, regions, pixel_span=1):
         regions.append(coordinates)
 
 
-def find_regions(org_image, ref_image=None, pixel_span=1):
+def find_regions(org_image, ref_image=None, pixel_span=2):
     """Find and return regions from org_image,
     according to ref_image. If there's no ref_image, org_image
     will be it.
@@ -74,7 +74,7 @@ def find_regions(org_image, ref_image=None, pixel_span=1):
     for row in range(image_height):
         for col in range(image_width):
             if ref_image[row][col] == 255:
-                if find_region_with_coordinate(regions, (row,col)) is None:
+                if find_region_with_coordinate(regions, (row, col)) is None:
                     add_region(org_image, row, col, regions, pixel_span)
 
     img_regions = org_image.copy()
@@ -102,7 +102,7 @@ def find_region_with_coordinate(regions, coordinate):
 
 
 def find_vertical_regions(image, image_vertical_lines=None,
-                          staff_spacing=None, pixel_span=1):
+                          staff_spacing=None, pixel_span=2):
     """Return regions from image that contain vertical lines
     :param image:
     :param image_vertical_lines:
@@ -122,17 +122,24 @@ def split_image_by_regions(image, regions):
     """
     split_images = []
     for region in regions:
-        min_row = min([r for r, c in region])
-        max_row = max([r for r, c in region])
-        min_col = min([c for r, c in region])
-        max_col = max([c for r, c in region])
-        sub_image = []
-        for row in range(min_row, max_row + 1):
-            sub_image.append([])
-            for col in range(min_col, max_col + 1):
-                sub_image[-1] += [image[row][col]]
-        sub_image = np.array(sub_image)
-        sub_image = np.uint8(sub_image)
-        split_images.append(sub_image)
+        split_images.append(get_region_image(image, region))
     return split_images
 
+
+def get_region_image(image, region):
+    """Get image containing only the specified region
+    :param image:
+    :param region:
+    """
+    min_row = min([r for r, c in region])
+    max_row = max([r for r, c in region])
+    min_col = min([c for r, c in region])
+    max_col = max([c for r, c in region])
+    sub_image = []
+    for row in range(min_row, max_row + 1):
+        sub_image.append([])
+        for col in range(min_col, max_col + 1):
+            sub_image[-1] += [image[row][col]]
+    sub_image = np.array(sub_image)
+    sub_image = np.uint8(sub_image)
+    return sub_image

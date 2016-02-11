@@ -76,9 +76,11 @@ def intersect_lists(first, second):
     return ret_val
 
 
-def group_rows(rows, tolerance = 3):
+def group_rows(rows, tolerance=3, max_failed_checks=3):
     """Group white rows by staves and staff lines
     :param rows:
+    :param tolerance:
+    :param max_failed_checks:
     """
 
     # Contains list of staves,
@@ -89,9 +91,24 @@ def group_rows(rows, tolerance = 3):
     line_distances = [[]]
     staff_distances = []
     prev_row = None
+    failed_checks = 0
     for row in rows:
         if prev_row is not None:
             if row - prev_row > 1:
+                if len(labels[-1]) == 5:
+                    min_line_distance = min(line_distances[-1])
+                    for index, distance in enumerate(line_distances[-1]):
+                        diff = abs(min_line_distance - distance)
+                        if diff > tolerance:
+                            line_distances[-1].remove(distance)
+                            labels[-1].remove(labels[-1][index])
+                            failed_checks += 1
+                            if failed_checks > max_failed_checks:
+                                raise Exception("Max failed line distance checks performed during line pixel grouping!",
+                                                "Possible bad morphological horizontal line opening.")
+                            break
+                    else:
+                        failed_checks = 0
                 if len(labels[-1]) < 5:
                     # Add another line to the last staff
                     # and add the distance between new line
@@ -99,9 +116,6 @@ def group_rows(rows, tolerance = 3):
                     labels[-1].append([])
                     line_distances[-1] += [row - prev_row]
                 else:
-                    #avg_line_distances = sum(line_distances[-1]) / 4.
-                    #for distance in line_distances[-1]:
-                    #    diff = abs(avg_line_distances - distance)
                     # Add another staff
                     labels.append([])
                     # Add a new line to it
@@ -136,7 +150,6 @@ def remove_lines(org_image,
         lines = find_lines(org_image)[0]
 
     image_height, image_width = image.shape[:2]
-
     if top_bot_pixel_removal:
         for staff in lines:
             for line in staff:
@@ -174,17 +187,18 @@ def remove_lines(org_image,
         avg_thickness = sum(avg_thickness) * 1. / len(avg_thickness)
 
         for j in range(image_width):
-            checking_line = False
-            for i in range(len(image)):
-                if image[i][j] == 255:
-                    if not checking_line:
-                        start = i
-                    checking_line = True
-                else:
-                    if checking_line:
-                        thickness = i - start
-                        if thickness <= (avg_thickness + thickness_tolerance):
-                            for row in image[start: i]:
-                                row[j] = 0
-                    checking_line = False
+            for staff in lines:
+                checking_line = False
+                for i in range(staff[0][0], staff[-1][-1]+2):
+                    if image[i][j] == 255:
+                        if not checking_line:
+                            start = i
+                        checking_line = True
+                    else:
+                        if checking_line:
+                            thickness = i - start
+                            if thickness <= (avg_thickness + thickness_tolerance):
+                                for row in image[start: i]:
+                                    row[j] = 0
+                        checking_line = False
     return image

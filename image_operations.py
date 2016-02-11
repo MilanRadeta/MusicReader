@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import staff_lines as sl
 
 HORIZONTAL_PROJECTION = 0
 VERTICAL_PROJECTION = 1

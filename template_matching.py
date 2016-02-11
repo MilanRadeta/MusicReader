@@ -10,7 +10,7 @@ def search_for_templates(template_filepaths):
     """
 
     templates = []
-    if template_filepaths == str:
+    if type(template_filepaths) == str:
         filenames = [template_filepaths]
     else:
         filenames = template_filepaths
