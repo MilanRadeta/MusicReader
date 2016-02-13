@@ -29,16 +29,8 @@ def display_image(image):
     return imp.display_image(image)
 
 
-def crop_image(image):
-    return imo.crop_image(image)
-
-
-def project_image(image):
-    return imo.project_image(image)
-
-
-def open_image(image):
-    return imo.open_image(image)
+def open_image(image, kernel=None):
+    return imo.open_image(image, kernel)
 
 
 def open_image_vertically(staff_image, avg_staff_spacing):
@@ -70,9 +62,9 @@ def get_bar_lines(regions, vertical_lines, staff):
     return mc.get_bar_lines(regions, vertical_lines, staff)
 
 
-def remove_bar_lines(images, bar_lines, regions, vertical_lines):
-    print("Removing bar lines from staff images, regions and vertical lines...")
-    return mc.remove_bar_lines(images, bar_lines, regions, vertical_lines)
+def remove_bar_lines(images, bar_lines, regions):
+    print("Removing bar lines from staff images and regions...")
+    return mc.remove_bar_lines(images, bar_lines, regions)
 
 
 def get_clefs(image, regions, bar_lines):
@@ -81,8 +73,35 @@ def get_clefs(image, regions, bar_lines):
 
 
 def remove_clefs(images, clefs, regions):
-    print("Removing clefs from staff images and regions...")
-    return mc.remove_clefs(images, clefs, regions)
+    if len(clefs) > 0:
+        print("Removing clefs from staff images and regions...")
+        return mc.remove_clefs(images, clefs, regions)
+
+
+def get_time_signatures(staff_image, regions, bar_lines, clefs):
+    print("Classyfing time signatures...")
+    return mc.get_time_signatures(staff_image, regions, bar_lines, clefs)
+
+
+def remove_time_signatures(images, time_signatures, regions):
+    if len(time_signatures) > 0:
+        print("Removing time signatures...")
+        return mc.remove_time_signatures(images, time_signatures, regions)
+
+
+def get_endings(staff_image, regions, top_staff_line_row):
+    print("Classyfing endings...")
+    return mc.get_endings(staff_image, regions, top_staff_line_row)
+
+
+def remove_endings(images, endings, regions):
+    if len(endings) > 0:
+        print("Removing time signatures...")
+        return mc.remove_endings(images, endings, regions)
+
+
+def find_notes(image, regions, staff, staff_spacing):
+    return mc.find_notes(image, regions, staff, staff_spacing)
 
 
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
@@ -93,15 +112,22 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     img_vert_lines = open_image_vertically(staff_image, avg_staff_spacing)
     print("Saving vertical lines...")
     vertical_lines = find_regions(img_vert_lines)[1]
-    img_vert_objects, regions = \
+    img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
                               avg_staff_spacing, pixel_span=2)
-    bar_lines = get_bar_lines(regions, vertical_lines, staff)
+    bar_lines = get_bar_lines(vertical_regions, vertical_lines, staff)
     remove_bar_lines([staff_image, img_vert_objects, img_vert_lines],
-                     bar_lines, regions, vertical_lines)
-    clefs = get_clefs(staff_image, regions, bar_lines)
-    remove_clefs([staff_image, img_vert_objects, img_vert_lines], clefs, regions)
-    imp.display_image(img_vert_objects)
+                     bar_lines, vertical_regions)
+    clefs = get_clefs(staff_image, vertical_regions, bar_lines)
+    remove_clefs([staff_image, img_vert_objects, img_vert_lines], clefs, vertical_regions)
+    time_signatures = get_time_signatures(staff_image, vertical_regions, bar_lines,
+                                          [clef[0] for clef in clefs])
+    remove_time_signatures([staff_image, img_vert_objects, img_vert_lines],
+                           time_signatures, vertical_regions)
+    endings = get_endings(staff_image, vertical_regions, staff[0][0])
+    remove_endings([staff_image, img_vert_objects, img_vert_lines],
+                   endings, vertical_regions)
+    find_notes(img_vert_objects, vertical_regions, staff, avg_staff_spacing)
 
 
 def perform_recognition(image_name):
