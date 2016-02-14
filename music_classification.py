@@ -204,7 +204,15 @@ def remove_endings(images, endings, regions):
     remove_white_pixels(images, [ending[0] for ending in endings], [regions])
 
 
-def find_notes(image, regions, staff, staff_spacing, tolerance=None, thickness_tolerance=2):
+def find_avg_thickness(vertical_lines):
+    avg_vert_line_thickness = 0
+    for line in vertical_lines:
+        avg_vert_line_thickness += max([c for r, c in line]) - min([c for r, c in line]) + 1
+    avg_vert_line_thickness *= 1. / len(vertical_lines)
+    return avg_vert_line_thickness
+
+
+def find_notes(image, regions, staff, staff_spacing, tolerance=None, flag_min_match=0.8):
     for region in regions:
         region_image = irr.get_region_image(image, region)
         if len(region_image) > 2.5 * staff_spacing:
@@ -212,20 +220,13 @@ def find_notes(image, regions, staff, staff_spacing, tolerance=None, thickness_t
             vertical_lines = find_regions(img_vert_lines)[1]
             remove_white_pixels([region_image], vertical_lines)
 
-            first_line = None
-            last_line = None
-            avg_vert_line_thickness = 0
-            for line in vertical_lines:
-                if first_line is None or min([c for r, c in line]) < min([c for r, c in first_line]):
-                    first_line = line
-                if last_line is None or max([c for r, c in line]) > max([c for r, c in last_line]):
-                    last_line = line
-                avg_vert_line_thickness += max([c for r, c in line]) - min([c for r, c in line]) + 1
-            avg_vert_line_thickness *= 1. / len(vertical_lines)
+            avg_vert_line_thickness = find_avg_thickness(vertical_lines)
+
             if tolerance is None:
                 tolerance = avg_vert_line_thickness
 
-            # find beams by searching for regions between vertical lines
+            # Find beams by searching for regions between vertical lines
+            print("Finding full beams...")
             full_beams = []
             connected_regions = []
             separate_regions = []
@@ -257,6 +258,7 @@ def find_notes(image, regions, staff, staff_spacing, tolerance=None, thickness_t
                     separate_regions += [sub_region]
 
             # Find half beams
+            print("Finding half beams...")
             half_beams = []
             for sub_region in connected_regions:
                 max_row = max([r for r, c in sub_region[0]])
@@ -268,23 +270,35 @@ def find_notes(image, regions, staff, staff_spacing, tolerance=None, thickness_t
                         try:
                             min_beam_row = min([r for r, c in beam[0] if min_col <= c <= max_col])
                             max_beam_row = max([r for r, c in beam[0] if min_col <= c <= max_col])
-                            distance = None
-                            if min_row > max_beam_row:
-                                distance = min_row - max_beam_row
-                            elif max_row < min_beam_row:
-                                distance = min_beam_row - max_row
-                            if distance is not None and distance < staff_spacing:
-                                half_beams += [sub_region]
-                        except:
-                            pass
+                        except ValueError:
+                            continue
+                        distance = None
+                        if min_row > max_beam_row:
+                            distance = min_row - max_beam_row
+                        elif max_row < min_beam_row:
+                            distance = min_beam_row - max_row
+                        if distance is not None and distance < staff_spacing:
+                            half_beams += [sub_region]
 
             for half_beam in half_beams:
                 connected_regions.remove(half_beam)
 
-            # imp.display_image(region_image)
             # find flags
+            print("Finding flags...")
+            flags = []
+            flag_templates = search_for_templates("flags")
+            for sub_region in connected_regions:
+                best_match = template_match(get_region_image(region_image, sub_region[0]),
+                                            template_filepaths=flag_templates,
+                                            resize=True, print_results=False)
+                if flag_min_match <= best_match[1]:
+                    flags += [sub_region]
+
+            for flag in flags:
+                connected_regions.remove(flag)
 
             # remove flags and beams from original image
 
+            # imp.display_image(region_image)
             # find note heads by splitting the original image into each line
             #   and searching between min and max column of the region
