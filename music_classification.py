@@ -53,7 +53,7 @@ def remove_bar_lines(images, bar_lines, regions):
     remove_white_pixels(images, bar_lines, [regions])
 
 
-def get_clefs(staff_image, regions, bar_lines, min_match=0.75):
+def get_clefs(staff_image, regions, bar_lines, min_match=0.78):
     template_filepaths = None
     clefs = []
     for index in range(len(bar_lines) - 1):
@@ -233,6 +233,7 @@ def find_notes(image, regions, staff, staff_spacing, tolerance=None, thickness_t
             for sub_region in sub_regions:
                 start_vert_line = None
                 end_vert_line = None
+                lines = []
                 min_col = min([c for r, c in sub_region])
                 max_col = max([c for r, c in sub_region])
                 for line in vertical_lines:
@@ -240,42 +241,50 @@ def find_notes(image, regions, staff, staff_spacing, tolerance=None, thickness_t
                     max_line_col = max([c for r, c in line])
                     if -tolerance <= min_col - max_line_col <= tolerance:
                         start_vert_line = line
+                        lines += [line]
                     elif -tolerance <= min_line_col - max_col <= tolerance:
                         end_vert_line = line
+                        lines += [line]
+                    elif min_col < min_line_col < max_col:
+                        lines += [line]
                 if start_vert_line is not None and end_vert_line is not None:
-                    full_beams += [(sub_region, start_vert_line, end_vert_line)]
+                    full_beams += [(sub_region, start_vert_line, end_vert_line, lines)]
                 elif start_vert_line is not None or end_vert_line is not None:
                     connected_regions += [(sub_region,
-                                          start_vert_line
-                                          if start_vert_line is not None else end_vert_line)]
+                                           start_vert_line
+                                           if start_vert_line is not None else end_vert_line)]
                 else:
                     separate_regions += [sub_region]
 
-            print("Full beams")
-            for beam in full_beams:
-                print(beam)
-            imp.display_image(region_image)
-            # Found full beams, now check the other connected regions if they are flags or half beams
-            if False:
-                avg_line_thickness = 0
-                for line in staff:
-                    avg_line_thickness += len(line)
-                avg_line_thickness *= 1. / len(staff)
-                for index in range(len(connected_regions) - 1, -1):
-                    half_beam = connected_regions[index][0]
-                    half_beam_top = min([r for r, c in half_beam])
-                    half_beam_bot = max([r for r, c in half_beam])
-                    half_beam_thickness = half_beam_bot - half_beam_top + 1
-                    if abs(avg_line_thickness - half_beam_thickness) < thickness_tolerance:
-                        # Is probably a ledger
-                        connected_regions.remove(half_beam)
+            # Find half beams
+            half_beams = []
+            for sub_region in connected_regions:
+                max_row = max([r for r, c in sub_region[0]])
+                min_row = min([r for r, c in sub_region[0]])
+                min_col = min([c for r, c in sub_region[0]])
+                max_col = max([c for r, c in sub_region[0]])
+                for beam in full_beams:
+                    if sub_region[1] in beam[3]:
+                        try:
+                            min_beam_row = min([r for r, c in beam[0] if min_col <= c <= max_col])
+                            max_beam_row = max([r for r, c in beam[0] if min_col <= c <= max_col])
+                            distance = None
+                            if min_row > max_beam_row:
+                                distance = min_row - max_beam_row
+                            elif max_row < min_beam_row:
+                                distance = min_beam_row - max_row
+                            if distance is not None and distance < staff_spacing:
+                                half_beams += [sub_region]
+                        except:
+                            pass
 
-                print("Half beams")
-                for half_beam in connected_regions:
-                    print(half_beam)
-                print("Other regions")
-                for other_region in separate_regions:
-                    print(other_region)
+            for half_beam in half_beams:
+                connected_regions.remove(half_beam)
 
-                # find note heads by splitting the original image into each line
-                #   and searching between min and max column of the region
+            # imp.display_image(region_image)
+            # find flags
+
+            # remove flags and beams from original image
+
+            # find note heads by splitting the original image into each line
+            #   and searching between min and max column of the region
