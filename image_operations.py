@@ -83,12 +83,12 @@ def crop_image(image, crop_start=None, crop_width=None):
     return crop
 
 
-def open_image_vertically(image, staff_spacing):
+def open_image_vertically(image, staff_spacing, multiply_factor=1.5):
     """Morphological opening of image with vertical line kernel
     :param image:
     :param staff_spacing:
     """
-    return open_image(image, np.ones((int(round(1.5 * staff_spacing)), 1)))
+    return open_image(image, np.ones((int(round(multiply_factor * staff_spacing)), 1)))
 
 
 def image_subtract(image1, image2):

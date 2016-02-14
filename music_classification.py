@@ -1,6 +1,7 @@
 import template_matching as tm
 import image_region_recognition as irr
 import image_operations as imo
+import image_processing as imp
 
 
 def open_image(image, kernel=None):
@@ -73,7 +74,13 @@ def remove_clefs(images, clefs, regions):
     remove_white_pixels(images, [clef[0] for clef in clefs], [regions])
 
 
-def remove_white_pixels(images, white_regions, regions_list):
+def remove_white_pixels(images=None, white_regions=None, regions_list=None):
+    if regions_list is None:
+        regions_list = []
+    if images is None:
+        images = []
+    if white_regions is None:
+        white_regions = []
     for white_region in white_regions:
         for regions in regions_list:
             regions.remove(white_region)
@@ -143,7 +150,7 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                         closest_region_bot = max([r for r, c in closest_region])
                         closest_region_height = closest_region_bot - closest_region_top + 1
                         if closest_region_top >= bar_line_top - tolerance and \
-                                closest_region_bot <= bar_line_bot + tolerance:
+                                        closest_region_bot <= bar_line_bot + tolerance:
                             if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance:
                                 raise Exception("Second time signature number is bigger than half staff height")
                             if closest_region_top_copy < closest_region_top:
@@ -197,11 +204,78 @@ def remove_endings(images, endings, regions):
     remove_white_pixels(images, [ending[0] for ending in endings], [regions])
 
 
-def find_notes(image, regions, staff, staff_spacing):
-
+def find_notes(image, regions, staff, staff_spacing, tolerance=None, thickness_tolerance=2):
     for region in regions:
         region_image = irr.get_region_image(image, region)
-        # find vertical lines
-        # find beams by searching for regions between vertical lines
-        # find note heads by splitting the original image into each line
-        #   and searching between min and max column of the region
+        if len(region_image) > 2.5 * staff_spacing:
+            img_vert_lines = imo.open_image_vertically(region_image, staff_spacing, 3)
+            vertical_lines = find_regions(img_vert_lines)[1]
+            remove_white_pixels([region_image], vertical_lines)
+
+            first_line = None
+            last_line = None
+            avg_vert_line_thickness = 0
+            for line in vertical_lines:
+                if first_line is None or min([c for r, c in line]) < min([c for r, c in first_line]):
+                    first_line = line
+                if last_line is None or max([c for r, c in line]) > max([c for r, c in last_line]):
+                    last_line = line
+                avg_vert_line_thickness += max([c for r, c in line]) - min([c for r, c in line]) + 1
+            avg_vert_line_thickness *= 1. / len(vertical_lines)
+            if tolerance is None:
+                tolerance = avg_vert_line_thickness
+
+            # find beams by searching for regions between vertical lines
+            full_beams = []
+            connected_regions = []
+            separate_regions = []
+            sub_regions = find_regions(region_image)[1]
+            for sub_region in sub_regions:
+                start_vert_line = None
+                end_vert_line = None
+                min_col = min([c for r, c in sub_region])
+                max_col = max([c for r, c in sub_region])
+                for line in vertical_lines:
+                    min_line_col = min([c for r, c in line])
+                    max_line_col = max([c for r, c in line])
+                    if -tolerance <= min_col - max_line_col <= tolerance:
+                        start_vert_line = line
+                    elif -tolerance <= min_line_col - max_col <= tolerance:
+                        end_vert_line = line
+                if start_vert_line is not None and end_vert_line is not None:
+                    full_beams += [(sub_region, start_vert_line, end_vert_line)]
+                elif start_vert_line is not None or end_vert_line is not None:
+                    connected_regions += [(sub_region,
+                                          start_vert_line
+                                          if start_vert_line is not None else end_vert_line)]
+                else:
+                    separate_regions += [sub_region]
+
+            print("Full beams")
+            for beam in full_beams:
+                print(beam)
+            imp.display_image(region_image)
+            # Found full beams, now check the other connected regions if they are flags or half beams
+            if False:
+                avg_line_thickness = 0
+                for line in staff:
+                    avg_line_thickness += len(line)
+                avg_line_thickness *= 1. / len(staff)
+                for index in range(len(connected_regions) - 1, -1):
+                    half_beam = connected_regions[index][0]
+                    half_beam_top = min([r for r, c in half_beam])
+                    half_beam_bot = max([r for r, c in half_beam])
+                    half_beam_thickness = half_beam_bot - half_beam_top + 1
+                    if abs(avg_line_thickness - half_beam_thickness) < thickness_tolerance:
+                        # Is probably a ledger
+                        connected_regions.remove(half_beam)
+
+                print("Half beams")
+                for half_beam in connected_regions:
+                    print(half_beam)
+                print("Other regions")
+                for other_region in separate_regions:
+                    print(other_region)
+
+                # find note heads by splitting the original image into each line
+                #   and searching between min and max column of the region
