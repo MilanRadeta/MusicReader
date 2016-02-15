@@ -48,8 +48,8 @@ def remove_lines(inv_img, lines):
     return sl.remove_lines(inv_img, lines)
 
 
-def find_regions(img_vert_lines):
-    return irr.find_regions(img_vert_lines)
+def find_regions(image):
+    return irr.find_regions(image)
 
 
 def find_vertical_regions(staff_image, img_vert_lines, avg_staff_spacing, pixel_span=1, eight_way=True):
@@ -102,11 +102,21 @@ def remove_endings(images, endings, regions):
 
 
 def find_vertical_notes(image, regions, staff, staff_spacing, staff_distance):
+    print("Finding notes...")
     return mc.find_vertical_notes(image, regions, staff, staff_spacing, staff_distance)
 
 
 def remove_vertical_notes(images, notes, regions):
     return mc.remove_vertical_notes(images, notes, regions)
+
+
+def find_accidentals(image, regions):
+    print("Finding accidentals...")
+    return mc.find_accidentals(image, regions)
+
+
+def remove_accidentals(images, accidentals, regions):
+    return mc.remove_accidentals(images, accidentals, regions)
 
 
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
@@ -134,11 +144,17 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 3.5)
     img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
-                              avg_staff_spacing, pixel_span=1, eight_way=False)
+                              avg_staff_spacing, pixel_span=1, eight_way=True)
     notes = find_vertical_notes(img_vert_objects, vertical_regions, staff,
                                 avg_staff_spacing, avg_staff_distance)
     remove_vertical_notes([staff_image, img_vert_objects, img_vert_lines],
                           notes, vertical_regions)
+    img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 2)
+    img_vert_objects, vertical_regions = \
+        find_vertical_regions(staff_image, img_vert_lines,
+                              avg_staff_spacing, pixel_span=1, eight_way=True)
+    accidentals = find_accidentals(img_vert_objects, vertical_regions)
+    remove_accidentals([staff_image], accidentals, None)
 
 
 def perform_recognition(image_name):

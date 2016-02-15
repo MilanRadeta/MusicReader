@@ -3,6 +3,7 @@ import image_region_recognition as irr
 import image_operations as imo
 import image_processing as imp
 
+
 def open_image(image, kernel=None):
     return imo.open_image(image, kernel)
 
@@ -134,9 +135,12 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
             closest_region_height = closest_region_bot - closest_region_top + 1
             if closest_region_top >= bar_line_top - tolerance and closest_region_bot <= bar_line_bot + tolerance:
                 region_images = []
-                if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance:
+                full_region_image = None
+                if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance \
+                        or (closest_region_top < bar_line_top + bar_line_height // 2 < closest_region_bot):
                     # Time signature's top and bottom numbers are recognized as one region, they need to be split
                     region_image = get_region_image(staff_image, closest_region)
+                    full_region_image = region_image
                     region_images = [region_image[:bar_line_height / 2], region_image[bar_line_height / 2:]]
                 else:
                     # Time signature's top and bottom numbers are separate regions, get another one
@@ -149,7 +153,7 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                         closest_region_bot = max([r for r, c in closest_region])
                         closest_region_height = closest_region_bot - closest_region_top + 1
                         if closest_region_top >= bar_line_top - tolerance and \
-                           closest_region_bot <= bar_line_bot + tolerance:
+                                        closest_region_bot <= bar_line_bot + tolerance:
                             if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance:
                                 raise Exception("Second time signature number is bigger than half staff height")
                             if closest_region_top_copy < closest_region_top:
@@ -176,6 +180,12 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                                                        resize=True, print_results=False)
                     if min_match <= best_matches[0] and min_match <= best_matches[1]:
                         time_signatures += [(closest_region, best_matches)]
+                    elif full_region_image is not None:
+                        best_match = template_match(full_region_image,
+                                                    template_filepaths=template_filepaths,
+                                                    resize=True, print_results=False)
+                        if min_match <= best_match:
+                            time_signatures += [(closest_region, best_match)]
     return time_signatures
 
 
@@ -215,13 +225,12 @@ def find_avg_thickness(vertical_lines):
 def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance,
                         tolerance=None, flag_min_match=0.8, note_head_min_match=0.8):
     image = org_image.copy()
-    regions_copy = regions
 
     rel_staff = []
     for line in staff:
         rel_line = []
         for row in line:
-            rel_line += [row - (staff[0][0] - staff_distance//2)]
+            rel_line += [row - (staff[0][0] - staff_distance // 2)]
         rel_staff += [rel_line]
 
     recognized_notes = []
@@ -237,7 +246,7 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
         template = imp.invert(template)
         note_heads_templates[templateName] = template
 
-    for index, region in enumerate(regions_copy):
+    for index, region in enumerate(regions):
         org_reg_c = min([c for r, c in region])
         org_reg_r = min([r for r, c in region])
         region_image = irr.get_region_image(image, region)
@@ -328,18 +337,18 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
             for connected_region in connected_regions:
                 min_r = rel_staff[0][-1]
                 line_index = 0.5
-                while abs(min_r - org_reg_r) >= staff_spacing//2:
+                while abs(min_r - org_reg_r) >= staff_spacing // 2:
                     if min_r > org_reg_r:
-                        min_r -= staff_spacing//2
+                        min_r -= staff_spacing // 2
                         line_index -= 0.5
                     else:
-                        min_r += staff_spacing//2
+                        min_r += staff_spacing // 2
                         line_index += 0.5
                 min_r -= org_reg_r
                 min_r = int(min_r)
 
                 max_r = max([r for r, c in connected_region[0]])
-                for start_r in range(min_r, max_r, int(staff_spacing//2)):
+                for start_r in range(min_r, max_r, int(staff_spacing // 2)):
                     sub_region = [value for value in connected_region[0]
                                   if start_r + staff_spacing >= value[0] >= start_r]
                     if len(sub_region) > 0:
@@ -376,22 +385,18 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                         flags_and_beams += 1
                 for flag, flag_match in flags:
                     if line == flag[1]:
-                        flags_and_beams += int(flag_match[0].split('/')[-1].split('_')[0]) / 2
+                        flags_and_beams += int(flag_match[0].split('/')[-1].split('_')[0]) / 8
 
                 if flags_and_beams > 0:
-                    duration = 1/4.
+                    duration = 1 / 4.
                     for i in range(flags_and_beams):
                         duration /= 2
                 else:
-                    duration = 1/4. if note_head_type == "filled" else 0.5
+                    duration = 1 / 4. if note_head_type == "filled" else 0.5
 
                 notes += [(min([c for r, c in connected_region[0]]), height, note_head_type, duration)]
 
             notes = sorted(notes)
-
-            for note in notes:
-                print(note)
-            imp.display_image(region_image)
 
             recognized_notes += [(region, org_reg_c, notes)]
             unrecognized_regions += [(region, connected_regions, separate_regions)]
@@ -426,7 +431,7 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                 remove_white_pixels([region_image], [to_remove_from_region_image])
         else:
             small_regions += [region]
-            #remove_white_pixels([image], [region])
+            # remove_white_pixels([image], [region])
     recognized_notes.sort(key=lambda x: x[1])
     return recognized_notes
 
@@ -434,3 +439,20 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
 def remove_vertical_notes(images, notes, regions):
     regions_to_delete = [note[0] for note in notes]
     remove_white_pixels(images, regions_to_delete, [regions])
+
+
+def find_accidentals(org_image, regions, min_match=0.7):
+    accidentals = []
+    template_filepaths = search_for_templates(["accidentals"])
+    for region in regions:
+        region_image = irr.get_region_image(org_image, region)
+        best_match = template_match(region_image,
+                                    template_filepaths=template_filepaths,
+                                    resize=True, print_results=False)
+        if min_match <= best_match[1]:
+            accidentals += [(region, best_match)]
+    return accidentals
+
+
+def remove_accidentals(images, accidentals, regions):
+    return remove_white_pixels(images, [accidental[0] for accidental in accidentals], regions)
