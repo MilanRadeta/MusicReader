@@ -2,7 +2,6 @@ import template_matching as tm
 import image_region_recognition as irr
 import image_operations as imo
 import image_processing as imp
-import collections
 
 def open_image(image, kernel=None):
     return imo.open_image(image, kernel)
@@ -12,8 +11,8 @@ def merge_images(images):
     return imo.merge_images(images)
 
 
-def find_regions(org_image, ref_image=None, pixel_span=2):
-    return irr.find_regions(org_image, ref_image, pixel_span)
+def find_regions(org_image, ref_image=None, pixel_span=2, eight_way=True):
+    return irr.find_regions(org_image, ref_image, pixel_span, eight_way=eight_way)
 
 
 def search_for_templates(template_filepaths):
@@ -64,7 +63,7 @@ def get_clefs(staff_image, regions, bar_lines, min_match=0.78):
                 template_filepaths = search_for_templates("clefs")
             best_match = template_match(get_region_image(staff_image, closest_region),
                                         template_filepaths=template_filepaths,
-                                        resize=True, print_results=True)
+                                        resize=True, print_results=False)
             if min_match <= best_match[1]:
                 clefs += [(closest_region, best_match)]
     return clefs
@@ -89,17 +88,20 @@ def remove_white_pixels(images=None, white_regions=None, regions_list=None):
                 img[r][c] = 0
 
 
-def find_closest_region(ref_region, regions):
+def find_closest_region(ref_region, regions, exceptions=None):
+    if exceptions is None:
+        exceptions = []
     max_ref_reg_col = max([c for r, c in ref_region])
     closest_region = None
     closest_col = -1
     for region in regions:
-        reg_cols = [c for r, c in region if c > max_ref_reg_col]
-        if len(reg_cols) > 0:
-            min_clef_col = min(reg_cols)
-            if min_clef_col < closest_col or closest_col == -1:
-                closest_col = min_clef_col
-                closest_region = region
+        if region not in exceptions:
+            reg_cols = [c for r, c in region if c > max_ref_reg_col]
+            if len(reg_cols) > 0:
+                min_clef_col = min(reg_cols)
+                if min_clef_col < closest_col or closest_col == -1:
+                    closest_col = min_clef_col
+                    closest_region = region
     return closest_region, closest_col
 
 
@@ -140,10 +142,7 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                     # Time signature's top and bottom numbers are separate regions, get another one
                     closest_region_copy = closest_region[:]
                     closest_region_top_copy = closest_region_top
-                    img_copy = staff_image.copy()
-                    regions_copy = regions[:]
-                    remove_white_pixels([img_copy], [closest_region], [regions_copy])
-                    closest_region, closest_col = find_closest_region(start_region, regions_copy)
+                    closest_region, closest_col = find_closest_region(start_region, regions, [closest_region])
                     if closest_region is not None and \
                             check_region_location(start_region, bar_lines[index + 1], closest_region):
                         closest_region_top = min([r for r, c in closest_region])
@@ -174,7 +173,7 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                     for image in region_images:
                         best_matches += template_match(image,
                                                        template_filepaths=template_filepaths,
-                                                       resize=True, print_results=True)
+                                                       resize=True, print_results=False)
                     if min_match <= best_matches[0] and min_match <= best_matches[1]:
                         time_signatures += [(closest_region, best_matches)]
     return time_signatures
@@ -184,7 +183,7 @@ def remove_time_signatures(images, time_signatures, regions):
     remove_white_pixels(images, [time_signature[0] for time_signature in time_signatures], [regions])
 
 
-def get_endings(staff_image, regions, top_staff_line_row, min_match=0.85):
+def get_endings(staff_image, regions, top_staff_line_row, min_match=0.9):
     template_filepaths = None
     endings = []
     for region in regions:
@@ -194,7 +193,7 @@ def get_endings(staff_image, regions, top_staff_line_row, min_match=0.85):
                 template_filepaths = search_for_templates("endings")
                 best_match = template_match(get_region_image(staff_image, region),
                                             template_filepaths=template_filepaths,
-                                            resize=True, print_results=True)
+                                            resize=True, print_results=False)
                 if best_match >= min_match:
                     endings += [(region, best_match)]
     return endings
@@ -213,10 +212,10 @@ def find_avg_thickness(vertical_lines):
     return avg_vert_line_thickness
 
 
-def find_notes(org_image, regions, staff, staff_spacing, staff_distance,
-               tolerance=None, flag_min_match=0.8, note_head_min_match=0.8):
+def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance,
+                        tolerance=None, flag_min_match=0.8, note_head_min_match=0.8):
     image = org_image.copy()
-    regions_copy = regions[:]
+    regions_copy = regions
 
     rel_staff = []
     for line in staff:
@@ -225,7 +224,7 @@ def find_notes(org_image, regions, staff, staff_spacing, staff_distance,
             rel_line += [row - (staff[0][0] - staff_distance//2)]
         rel_staff += [rel_line]
 
-    recognized_regions = []
+    recognized_notes = []
     unrecognized_regions = []
     small_regions = []
 
@@ -242,7 +241,7 @@ def find_notes(org_image, regions, staff, staff_spacing, staff_distance,
         org_reg_c = min([c for r, c in region])
         org_reg_r = min([r for r, c in region])
         region_image = irr.get_region_image(image, region)
-        if len(region_image) > 2.5 * staff_spacing:
+        if len(region_image) > 3 * staff_spacing:
             img_vert_lines = imo.open_image_vertically(region_image, staff_spacing, 3)
             vertical_lines = find_regions(img_vert_lines)[1]
             remove_white_pixels([region_image], vertical_lines)
@@ -327,12 +326,15 @@ def find_notes(org_image, regions, staff, staff_spacing, staff_distance,
             print("Finding note heads...")
             note_heads = []
             for connected_region in connected_regions:
-                min_r = rel_staff[0][0]
+                min_r = rel_staff[0][-1]
+                line_index = 0.5
                 while abs(min_r - org_reg_r) >= staff_spacing//2:
                     if min_r > org_reg_r:
                         min_r -= staff_spacing//2
+                        line_index -= 0.5
                     else:
                         min_r += staff_spacing//2
+                        line_index += 0.5
                 min_r -= org_reg_r
                 min_r = int(min_r)
 
@@ -344,100 +346,91 @@ def find_notes(org_image, regions, staff, staff_spacing, staff_distance,
                         sub_region_img = get_region_image(region_image, sub_region)
                         best_match = template_match(sub_region_img,
                                                     template_images=note_heads_templates,
-                                                    print_results=True)
+                                                    print_results=False)
                         if note_head_min_match <= best_match[1]:
-                            note_heads += [(sub_region, connected_region, region, best_match)]
+                            note_heads += [(sub_region, connected_region, line_index, best_match)]
                         elif len(sub_region_img) >= staff_spacing:
                             # possible half note
-                            note_heads += [(sub_region, connected_regions, region,
+                            note_heads += [(sub_region, connected_region, line_index,
                                             ("templates/note_heads/half_01", 0.8))]
+                    line_index += 0.5
 
-            for note_head, connected_region, reg, match in note_heads:
+            for note_head, connected_region, line_index, match in note_heads:
                 if connected_region in connected_regions:
                     connected_regions.remove(connected_region)
 
-            if False:
-                # recognize note
-                print("Recognizing note...")
-                notes = []
-                for line in vertical_lines:
-                    height = None
-                    note_head_type = None
-                    duration = None
-                    for note_head, connected_region, match in note_heads:
-                        if line == note_head[1]:
-                            pass
-                        break
-                    break
+            # recognize note
+            print("Recognizing notes' properties...")
+            notes = []
+            for note_head, connected_region, line_index, match in note_heads:
+                height = line_index
+                note_head_type = match[0].split('/')[-1].split('_')[0]
+                flags_and_beams = 0
+                line = connected_region[1]
 
-            # Remove flags and beams from original image
-            to_remove = []
+                for beam in full_beams:
+                    if line in beam[3]:
+                        flags_and_beams += 1
+                for half_beam in half_beams:
+                    if line == half_beam[1]:
+                        flags_and_beams += 1
+                for flag, flag_match in flags:
+                    if line == flag[1]:
+                        flags_and_beams += int(flag_match[0].split('/')[-1].split('_')[0]) / 2
 
-            for flag, match in flags:
-                for r, c in flag[0]:
-                    to_remove += [(r + org_reg_r, c + org_reg_c)]
-            for half_beam in half_beams:
-                for r, c in half_beam[0]:
-                    to_remove += [(r + org_reg_r, c + org_reg_c)]
-            for beam in full_beams:
-                for r, c in beam[0]:
-                    to_remove += [(r + org_reg_r, c + org_reg_c)]
-            for note_head, connected_region, reg, match in note_heads:
-                for r, c in note_head:
-                    to_remove += [(r + org_reg_r, c + org_reg_c)]
-            for line in vertical_lines:
-                for r, c in line:
-                    to_remove += [(r + org_reg_r, c + org_reg_c)]
+                if flags_and_beams > 0:
+                    duration = 1/4.
+                    for i in range(flags_and_beams):
+                        duration /= 2
+                else:
+                    duration = 1/4. if note_head_type == "filled" else 0.5
 
-            for value in to_remove:
-                if value in region:
-                    region.remove(value)
+                notes += [(min([c for r, c in connected_region[0]]), height, note_head_type, duration)]
 
+            notes = sorted(notes)
+
+            for note in notes:
+                print(note)
             imp.display_image(region_image)
 
-            remove_white_pixels([image], [to_remove])
-            recognized_regions += [(index, vertical_lines, full_beams, half_beams, flags, note_heads)]
-            unrecognized_regions += [(index, connected_regions, separate_regions)]
+            recognized_notes += [(region, org_reg_c, notes)]
+            unrecognized_regions += [(region, connected_regions, separate_regions)]
+
+            if False:
+                # Remove flags and beams from original image
+                to_remove = []
+                to_remove_from_region_image = []
+
+                for flag, match in flags:
+                    for r, c in flag[0]:
+                        to_remove += [(r + org_reg_r, c + org_reg_c)]
+                        to_remove_from_region_image += [(r, c)]
+                for half_beam in half_beams:
+                    for r, c in half_beam[0]:
+                        to_remove += [(r + org_reg_r, c + org_reg_c)]
+                        to_remove_from_region_image += [(r, c)]
+                for beam in full_beams:
+                    for r, c in beam[0]:
+                        to_remove += [(r + org_reg_r, c + org_reg_c)]
+                        to_remove_from_region_image += [(r, c)]
+                for note_head, connected_region, line_index, match in note_heads:
+                    for r, c in note_head:
+                        to_remove += [(r + org_reg_r, c + org_reg_c)]
+                        to_remove_from_region_image += [(r, c)]
+                for line in vertical_lines:
+                    for r, c in line:
+                        to_remove += [(r + org_reg_r, c + org_reg_c)]
+                        to_remove_from_region_image += [(r, c)]
+
+                remove_white_pixels([image], [to_remove])
+                remove_white_pixels([region_image], [to_remove_from_region_image])
         else:
-            small_regions += [(index, region)]
-            remove_white_pixels([image], [region])
+            small_regions += [region]
+            #remove_white_pixels([image], [region])
+    recognized_notes.sort(key=lambda x: x[1])
+    return recognized_notes
 
 
-def split_staff(image, staff, staff_spacing, staff_distance):
-    two_thirds_spacing = int(round(staff_spacing * 2. / 3))
-    rel_staff = []
-    for line in staff:
-        rel_line = []
-        for row in line:
-            rel_line += [row - (staff[0][0] - staff_distance//2)]
-        rel_staff += [rel_line]
-
-    start_row = (0, rel_staff[0][0])
-    min_row = int(staff_spacing)
-    while start_row[1] > min_row:
-        start_row = (start_row[0] - 1, int(start_row[1] - staff_spacing))
-    else:
-        start_row = (start_row[0] + 1, int(start_row[1] + staff_spacing))
-    imp.display_image(image)
-    sub_images = collections.OrderedDict()
-    for i in range(start_row[0], len(rel_staff) - start_row[0]):
-        if i < 0 or i >= len(rel_staff):
-            sub_images["On Line %s" % i] = image[start_row[1] - two_thirds_spacing:
-                                                 start_row[1] + two_thirds_spacing]
-            sub_images["Below Line %s" % i] = image[start_row[1] + staff_spacing//2 - two_thirds_spacing:
-                                                    start_row[1] + staff_spacing//2 + two_thirds_spacing]
-            start_row = (start_row[0] + 1, start_row[1] + staff_spacing)
-        else:
-            sub_images["On Line %s" % i] = image[rel_staff[i][0] - two_thirds_spacing:
-                                                 rel_staff[i][-1] + two_thirds_spacing]
-            if i + 1 < len(rel_staff):
-                sub_images["Below Line %s" % i] = image[rel_staff[i][0]: rel_staff[i + 1][-1]]
-            else:
-                sub_images["Below Line %s" % i] = image[rel_staff[i][0]:
-                                                        rel_staff[i][-1] + int(staff_spacing) + len(rel_staff[i])]
-            if start_row[0] != 5:
-                start_row = (5, rel_staff[-1][-1] + staff_spacing)
-    for key, simage in sub_images.items():
-        print(key)
-        imp.display_image(simage)
-    return sub_images
+def remove_vertical_notes(images, notes, regions):
+    regions_to_delete = [note[0] for note in notes]
+    remove_white_pixels(images, regions_to_delete, [regions])

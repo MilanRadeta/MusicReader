@@ -2,7 +2,7 @@ import numpy as np
 import image_operations as imo
 
 
-def add_region(image, row, col, regions, pixel_span=2):
+def add_region(image, row, col, regions, pixel_span=2, eight_way=True):
     """Search image for region containing white pixels
     at designated row and col and add it to found regions.
     If during the search white pixels that are already
@@ -13,12 +13,12 @@ def add_region(image, row, col, regions, pixel_span=2):
     :param col:
     :param regions:
     :param pixel_span:
+    :param eight_way:
     """
     image_height, image_width = image.shape[:2]
     found_region = None
     if image[row, col] == 0:
-        raise Exception("Image has a black pixel"
-                        "at row %s and col %s!" % (row, col))
+        return
 
     coordinates = [(row, col)]
     idx = 0
@@ -28,40 +28,42 @@ def add_region(image, row, col, regions, pixel_span=2):
             for dc in range(-pixel_span, pixel_span + 1):
                 r = row + dr
                 c = col + dc
-                if 0 <= r < image_height and 0 <= c < image_width:
-                    if image[r][c] == 255 and ((r, c) not in coordinates):
-                        if found_region is None:
-                            # If a region that contains one of the coordinates
-                            # hasn't been found, check all the regions now
-                            # for current coordinate
-                            found_region =\
-                                find_region_with_coordinate(regions, (r, c))
-
-                            if found_region is not None:
-                                # Found coordinate in one of other regions
-                                # Add all coordinates to the region if it
-                                # doesn't contain them
-                                for coordinate in coordinates:
-                                    if coordinate not in found_region:
-                                        found_region += [coordinate]
+                if eight_way or (abs(dr + dc) == 1):
+                    if 0 <= r < image_height and 0 <= c < image_width:
+                        if image[r][c] == 255 and ((r, c) not in coordinates):
                             if found_region is None:
-                                coordinates += [(r, c)]
-                        else:
-                            if (r, c) not in found_region:
-                                found_region += [(r, c)]
-                                coordinates += [(r, c)]
+                                # If a region that contains one of the coordinates
+                                # hasn't been found, check all the regions now
+                                # for current coordinate
+                                found_region =\
+                                    find_region_with_coordinate(regions, (r, c))
+
+                                if found_region is not None:
+                                    # Found coordinate in one of other regions
+                                    # Add all coordinates to the region if it
+                                    # doesn't contain them
+                                    for coordinate in coordinates:
+                                        if coordinate not in found_region:
+                                            found_region += [coordinate]
+                                if found_region is None:
+                                    coordinates += [(r, c)]
+                            else:
+                                if (r, c) not in found_region:
+                                    found_region += [(r, c)]
+                                    coordinates += [(r, c)]
         idx += 1
     if found_region is None:
         regions.append(coordinates)
 
 
-def find_regions(org_image, ref_image=None, pixel_span=2):
+def find_regions(org_image, ref_image=None, pixel_span=2, eight_way=True):
     """Find and return regions from org_image,
     according to ref_image. If there's no ref_image, org_image
     will be it.
     :param org_image:
     :param ref_image:
     :param pixel_span:
+    :param eight_way:
     """
     if ref_image is None:
         ref_image = org_image
@@ -75,7 +77,7 @@ def find_regions(org_image, ref_image=None, pixel_span=2):
         for col in range(image_width):
             if ref_image[row][col] == 255:
                 if find_region_with_coordinate(regions, (row, col)) is None:
-                    add_region(org_image, row, col, regions, pixel_span)
+                    add_region(org_image, row, col, regions, pixel_span, eight_way)
 
     img_regions = org_image.copy()
     for row in range(len(img_regions)):
@@ -102,17 +104,18 @@ def find_region_with_coordinate(regions, coordinate):
 
 
 def find_vertical_regions(image, image_vertical_lines=None,
-                          staff_spacing=None, pixel_span=2):
+                          staff_spacing=None, pixel_span=2, eight_way=True):
     """Return regions from image that contain vertical lines
     :param image:
     :param image_vertical_lines:
     :param staff_spacing:
     :param pixel_span:
+    :param eight_way:
     """
     if image_vertical_lines is None:
         image_vertical_lines = imo.open_image_vertically(
             image, staff_spacing)
-    return find_regions(image, image_vertical_lines, pixel_span=pixel_span)
+    return find_regions(image, image_vertical_lines, pixel_span=pixel_span, eight_way=eight_way)
 
 
 def split_image_by_regions(image, regions):

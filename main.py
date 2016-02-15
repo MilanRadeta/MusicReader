@@ -52,9 +52,10 @@ def find_regions(img_vert_lines):
     return irr.find_regions(img_vert_lines)
 
 
-def find_vertical_regions(staff_image, img_vert_lines, avg_staff_spacing, pixel_span=1):
+def find_vertical_regions(staff_image, img_vert_lines, avg_staff_spacing, pixel_span=1, eight_way=True):
     print("Finding vertical regions...")
-    return irr.find_vertical_regions(staff_image, img_vert_lines, avg_staff_spacing, pixel_span=pixel_span)
+    return irr.find_vertical_regions(staff_image, img_vert_lines, avg_staff_spacing,
+                                     pixel_span=pixel_span, eight_way=eight_way)
 
 
 def get_bar_lines(regions, vertical_lines, staff):
@@ -100,8 +101,12 @@ def remove_endings(images, endings, regions):
         return mc.remove_endings(images, endings, regions)
 
 
-def find_notes(image, regions, staff, staff_spacing, staff_distance):
-    return mc.find_notes(image, regions, staff, staff_spacing, staff_distance)
+def find_vertical_notes(image, regions, staff, staff_spacing, staff_distance):
+    return mc.find_vertical_notes(image, regions, staff, staff_spacing, staff_distance)
+
+
+def remove_vertical_notes(images, notes, regions):
+    return mc.remove_vertical_notes(images, notes, regions)
 
 
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
@@ -110,7 +115,6 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     staff_image_bot = staff[-1][-1] + avg_staff_distance//2
     staff_image = img_wo_lines[staff_image_top: staff_image_bot]
     img_vert_lines = open_image_vertically(staff_image, avg_staff_spacing)
-    print("Saving vertical lines...")
     vertical_lines = find_regions(img_vert_lines)[1]
     img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
@@ -124,10 +128,17 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
                                           [clef[0] for clef in clefs])
     remove_time_signatures([staff_image, img_vert_objects, img_vert_lines],
                            time_signatures, vertical_regions)
-    endings = get_endings(staff_image, vertical_regions, staff[0][0])
+    endings = get_endings(staff_image, vertical_regions, staff[0][0] - staff_image_top)
     remove_endings([staff_image, img_vert_objects, img_vert_lines],
                    endings, vertical_regions)
-    find_notes(img_vert_objects, vertical_regions, staff, avg_staff_spacing, avg_staff_distance)
+    img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 3.5)
+    img_vert_objects, vertical_regions = \
+        find_vertical_regions(staff_image, img_vert_lines,
+                              avg_staff_spacing, pixel_span=1, eight_way=False)
+    notes = find_vertical_notes(img_vert_objects, vertical_regions, staff,
+                                avg_staff_spacing, avg_staff_distance)
+    remove_vertical_notes([staff_image, img_vert_objects, img_vert_lines],
+                          notes, vertical_regions)
 
 
 def perform_recognition(image_name):

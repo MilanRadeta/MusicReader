@@ -87,6 +87,7 @@ def open_image_vertically(image, staff_spacing, multiply_factor=1.5):
     """Morphological opening of image with vertical line kernel
     :param image:
     :param staff_spacing:
+    :param multiply_factor:
     """
     return open_image(image, np.ones((int(round(multiply_factor * staff_spacing)), 1)))
 
