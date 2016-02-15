@@ -100,8 +100,8 @@ def remove_endings(images, endings, regions):
         return mc.remove_endings(images, endings, regions)
 
 
-def find_notes(image, regions, staff, staff_spacing):
-    return mc.find_notes(image, regions, staff, staff_spacing)
+def find_notes(image, regions, staff, staff_spacing, staff_distance):
+    return mc.find_notes(image, regions, staff, staff_spacing, staff_distance)
 
 
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
@@ -127,7 +127,7 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     endings = get_endings(staff_image, vertical_regions, staff[0][0])
     remove_endings([staff_image, img_vert_objects, img_vert_lines],
                    endings, vertical_regions)
-    find_notes(img_vert_objects, vertical_regions, staff, avg_staff_spacing)
+    find_notes(img_vert_objects, vertical_regions, staff, avg_staff_spacing, avg_staff_distance)
 
 
 def perform_recognition(image_name):
