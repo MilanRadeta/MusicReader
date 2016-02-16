@@ -153,7 +153,7 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                         closest_region_bot = max([r for r, c in closest_region])
                         closest_region_height = closest_region_bot - closest_region_top + 1
                         if closest_region_top >= bar_line_top - tolerance and \
-                                        closest_region_bot <= bar_line_bot + tolerance:
+                                closest_region_bot <= bar_line_bot + tolerance:
                             if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance:
                                 raise Exception("Second time signature number is bigger than half staff height")
                             if closest_region_top_copy < closest_region_top:
@@ -226,12 +226,7 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                         tolerance=None, flag_min_match=0.8, note_head_min_match=0.8):
     image = org_image.copy()
 
-    rel_staff = []
-    for line in staff:
-        rel_line = []
-        for row in line:
-            rel_line += [row - (staff[0][0] - staff_distance // 2)]
-        rel_staff += [rel_line]
+    rel_staff = get_rel_staff(staff, staff_distance)
 
     recognized_notes = []
     unrecognized_regions = []
@@ -456,3 +451,153 @@ def find_accidentals(org_image, regions, min_match=0.7):
 
 def remove_accidentals(images, accidentals, regions):
     return remove_white_pixels(images, [accidental[0] for accidental in accidentals], regions)
+
+
+def find_duration_dots(image, regions, staff_spacing, tolerance=2):
+    dots = []
+    dot_templates = {}
+    for templateName in search_for_templates("dots"):
+        template = imp.load_image(templateName)
+        template = imp.resize_image(template, (int(round(staff_spacing / 2)), int(round(staff_spacing / 2))))
+        template = imp.image_gray(template)
+        template = imp.image_bin_otsu(template)
+        template = imp.invert(template)
+        dot_templates[templateName] = template
+
+    for region in regions:
+        region_image = get_region_image(image, region)
+        height, width = region_image.shape[:2]
+        if height <= staff_spacing / 2 + tolerance and width <= staff_spacing / 2 + tolerance:
+            best_match = template_match(region_image,
+                                        template_images=dot_templates,
+                                        print_results=False)
+            dots += [(region, best_match)]
+    return dots
+
+
+def remove_duration_dots(images, dots, regions):
+    return remove_white_pixels(images, [dot[0] for dot in dots], regions)
+
+
+def remove_ledgers(images, regions, staff, staff_distance, tolerance=1):
+    avg_line_thickness = 0
+    for line in staff:
+        avg_line_thickness += line[-1] - line[0] + 1
+    avg_line_thickness *= 1. / len(staff)
+
+    rel_staff = get_rel_staff(staff, staff_distance)
+
+    regions_to_remove = []
+    for region in regions:
+        region_top = min([r for r, c in region])
+        region_bot = max([r for r, c in region])
+        region_height = region_bot - region_top + 1
+        if avg_line_thickness + tolerance > region_height and \
+                (region_bot < rel_staff[0][0] or region_top > rel_staff[-1][-1]):
+            regions_to_remove += [region]
+    remove_white_pixels(images, regions_to_remove, [regions])
+
+
+def get_rel_staff(staff, staff_distance):
+    rel_staff = []
+    for line in staff:
+        rel_line = []
+        for row in line:
+            rel_line += [row - (staff[0][0] - staff_distance // 2)]
+        rel_staff += [rel_line]
+
+    return rel_staff
+
+
+def get_possible_whole_note_regions(regions, bar_lines, clefs, time_signatures, staff_spacing, tolerance=1):
+    bar_line_top = min([r for r, c in bar_lines[0]])
+    bar_line_bot = max([r for r, c in bar_lines[0]])
+    possible_non_whole_note_regions = []
+    to_remove = []
+    for region in regions:
+        region_top = min([r for r, c in region])
+        region_bot = max([r for r, c in region])
+        region_height = region_bot - region_top + 1
+        if region_height < 1.5 * staff_spacing and (region_top > bar_line_bot or region_bot < bar_line_top):
+            possible_non_whole_note_regions += [region]
+
+    for bar_line in bar_lines:
+        closest_region = None
+        diff = tolerance * staff_spacing + 1
+        closest_time_signature, closest_col = \
+            find_closest_region(bar_line, time_signatures)
+        if closest_time_signature is None:
+            closest_clef, closest_col = find_closest_region(bar_line, clefs)
+            if closest_clef is None:
+                for region in regions:
+                    region_left = min([c for r, c in region])
+                    region_right = max([c for r, c in region])
+                    bar_line_left = min([c for r, c in bar_line])
+                    if region_left <= bar_line_left <= region_right:
+                        to_remove += [region]
+                        break
+            else:
+                closest_region, closest_col = find_closest_region(closest_clef, possible_non_whole_note_regions)
+                diff = closest_col - max([c for r, c in closest_clef])
+        else:
+            closest_region, closest_col = find_closest_region(closest_time_signature, possible_non_whole_note_regions)
+            diff = closest_col - max([c for r, c in closest_time_signature])
+        if closest_region is not None and diff < tolerance * staff_spacing:
+            to_remove += [closest_region]
+
+    ret_regs = []
+    for reg in regions:
+        if reg not in to_remove:
+            ret_regs += [reg]
+    return ret_regs
+
+
+def find_whole_notes(image, regions, bar_lines, clefs, time_signatures,
+                     staff, staff_spacing, staff_distance, min_match=0.61):
+    note_templates = {}
+    for templateName in search_for_templates(["note_heads/whole", "note_heads/double_whole"]):
+        template = imp.load_image(templateName)
+        template = imp.resize_image(template, (int(round(staff_spacing)), int(round(staff_spacing))))
+        template = imp.image_gray(template)
+        template = imp.image_bin_otsu(template)
+        template = imp.invert(template)
+        note_templates[templateName] = template
+
+    rel_staff = get_rel_staff(staff, staff_distance)
+    # find note_heads
+    print("Finding whole note heads...")
+    notes = []
+    possible_regions = get_possible_whole_note_regions(regions, bar_lines, clefs, time_signatures, staff_spacing)
+    for region in possible_regions:
+        reg_top = min([r for r, c in region])
+        reg_height, reg_width = get_region_image(image, region).shape[:2]
+        if staff_spacing <= reg_width and reg_height >= staff_spacing:
+            min_r = rel_staff[0][-1]
+            line_index = 0.5
+            while abs(min_r - reg_top) >= staff_spacing // 2:
+                if min_r > reg_top:
+                    min_r -= staff_spacing // 2
+                    line_index -= 0.5
+                else:
+                    min_r += staff_spacing // 2
+                    line_index += 0.5
+            min_r -= reg_top
+            min_r = int(min_r)
+
+            max_r = max([r for r, c in region])
+            for start_r in range(min_r, max_r, int(staff_spacing // 2)):
+                sub_region = [value for value in region
+                              if start_r + staff_spacing >= value[0] >= start_r]
+                if len(sub_region) > 0:
+                    sub_region_img = get_region_image(image, sub_region)
+                    best_match = template_match(sub_region_img,
+                                                template_images=note_templates,
+                                                print_results=True)
+                    if min_match <= best_match[1]:
+                        notes += [(region, line_index, best_match)]
+                line_index += 0.5
+    return notes
+
+
+def remove_whole_notes(images, whole_notes, regions):
+    remove_white_pixels(images, whole_notes, regions)

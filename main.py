@@ -48,8 +48,8 @@ def remove_lines(inv_img, lines):
     return sl.remove_lines(inv_img, lines)
 
 
-def find_regions(image):
-    return irr.find_regions(image)
+def find_regions(org_image, ref_image=None, pixel_span=2, eight_way=True):
+    return irr.find_regions(org_image, ref_image=ref_image, pixel_span=pixel_span, eight_way=eight_way)
 
 
 def find_vertical_regions(staff_image, img_vert_lines, avg_staff_spacing, pixel_span=1, eight_way=True):
@@ -119,6 +119,28 @@ def remove_accidentals(images, accidentals, regions):
     return mc.remove_accidentals(images, accidentals, regions)
 
 
+def find_duration_dots(image, regions, staff_spacing):
+    print("Finding duration dots...")
+    return mc.find_duration_dots(image, regions, staff_spacing)
+
+
+def remove_duration_dots(images, dots, regions):
+    return mc.remove_duration_dots(images, dots, regions)
+
+
+def remove_ledgers(images, regions, staff, staff_distance):
+    return mc.remove_ledgers(images, regions, staff, staff_distance)
+
+
+def find_whole_notes(image, regions, bar_lines, clefs, time_signatures, staff, staff_spacing, staff_distance):
+    return mc.find_whole_notes(image, regions, bar_lines, clefs, time_signatures,
+                               staff, staff_spacing, staff_distance)
+
+
+def remove_whole_notes(images, whole_notes, regions):
+    return mc.remove_whole_notes(images, whole_notes, regions)
+
+
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
     print("Analyzing staff %s" % (index + 1))
     staff_image_top = staff[0][0] - avg_staff_distance//2
@@ -155,6 +177,16 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
                               avg_staff_spacing, pixel_span=1, eight_way=True)
     accidentals = find_accidentals(img_vert_objects, vertical_regions)
     remove_accidentals([staff_image], accidentals, None)
+    regions = find_regions(staff_image, pixel_span=1)[1]
+    dots = find_duration_dots(staff_image, regions, avg_staff_spacing)
+    remove_duration_dots([staff_image], dots, [regions])
+    remove_ledgers([staff_image], regions, staff, avg_staff_distance)
+    regions = find_regions(staff_image, pixel_span=3)[1]
+    whole_notes = find_whole_notes(staff_image, regions, bar_lines, [clef[0] for clef in clefs],
+                     [time_signature[0] for time_signature in time_signatures],
+                     staff, avg_staff_spacing, avg_staff_distance)
+    remove_whole_notes([staff_image], [note[0] for note in whole_notes], [regions])
+    imp.display_image(staff_image)
 
 
 def perform_recognition(image_name):
