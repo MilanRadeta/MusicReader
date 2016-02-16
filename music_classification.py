@@ -592,7 +592,7 @@ def find_whole_notes(image, regions, bar_lines, clefs, time_signatures,
                     sub_region_img = get_region_image(image, sub_region)
                     best_match = template_match(sub_region_img,
                                                 template_images=note_templates,
-                                                print_results=True)
+                                                print_results=False)
                     if min_match <= best_match[1]:
                         notes += [(region, line_index, best_match)]
                 line_index += 0.5
@@ -601,3 +601,34 @@ def find_whole_notes(image, regions, bar_lines, clefs, time_signatures,
 
 def remove_whole_notes(images, whole_notes, regions):
     remove_white_pixels(images, whole_notes, regions)
+
+
+def find_rests(image, regions, bar_lines, crotchet_min_match=0.55, min_match=0.7):
+    rests = []
+    crotchet_templates = search_for_templates("rests/4")
+    all_templates = search_for_templates("rests")
+    bar_line_top = min([r for r, c in bar_lines[0]])
+    bar_line_bot = max([r for r, c in bar_lines[0]])
+    for region in regions:
+        reg_top = min([r for r, c in region])
+        reg_bot = max([r for r, c in region])
+        if reg_top > bar_line_top and reg_bot < bar_line_bot:
+            region_image = get_region_image(image, region)
+            best_match = template_match(region_image,
+                                        template_filepaths=crotchet_templates,
+                                        resize=True,
+                                        print_results=False)
+            if best_match[1] < crotchet_min_match:
+                best_match = template_match(region_image,
+                                            template_filepaths=all_templates,
+                                            resize=True,
+                                            print_results=False)
+                if best_match[1] >= min_match:
+                    rests += [(region, best_match)]
+            else:
+                rests += [(region, best_match)]
+    return rests
+
+
+def remove_rests(images, white_pixels, regions):
+    remove_white_pixels(images, white_pixels, regions)

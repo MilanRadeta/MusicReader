@@ -141,6 +141,14 @@ def remove_whole_notes(images, whole_notes, regions):
     return mc.remove_whole_notes(images, whole_notes, regions)
 
 
+def find_rests(image, regions, bar_lines):
+    return mc.find_rests(image, regions, bar_lines)
+
+
+def remove_rests(images, rests, regions):
+    return mc.remove_whole_notes(images, rests, regions)
+
+
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
     print("Analyzing staff %s" % (index + 1))
     staff_image_top = staff[0][0] - avg_staff_distance//2
@@ -186,6 +194,8 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
                      [time_signature[0] for time_signature in time_signatures],
                      staff, avg_staff_spacing, avg_staff_distance)
     remove_whole_notes([staff_image], [note[0] for note in whole_notes], [regions])
+    rests = find_rests(staff_image, regions, bar_lines)
+    remove_rests([staff_image], [rest[0] for rest in rests], [regions])
     imp.display_image(staff_image)
 
 
