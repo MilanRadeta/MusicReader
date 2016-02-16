@@ -58,7 +58,7 @@ def get_clefs(staff_image, regions, bar_lines, min_match=0.78):
     clefs = []
     for index in range(len(bar_lines) - 1):
         bar_line = bar_lines[index]
-        closest_region, closest_col = find_closest_region(bar_line, regions)
+        closest_region, closest_col, closest_index = find_closest_region(bar_line, regions)
         if closest_region is not None and check_region_location(bar_line, bar_lines[index + 1], closest_region):
             if template_filepaths is None:
                 template_filepaths = search_for_templates("clefs")
@@ -95,7 +95,8 @@ def find_closest_region(ref_region, regions, exceptions=None):
     max_ref_reg_col = max([c for r, c in ref_region])
     closest_region = None
     closest_col = -1
-    for region in regions:
+    closes_index = -1
+    for index, region in enumerate(regions):
         if region not in exceptions:
             reg_cols = [c for r, c in region if c > max_ref_reg_col]
             if len(reg_cols) > 0:
@@ -103,7 +104,7 @@ def find_closest_region(ref_region, regions, exceptions=None):
                 if min_clef_col < closest_col or closest_col == -1:
                     closest_col = min_clef_col
                     closest_region = region
-    return closest_region, closest_col
+    return closest_region, closest_col, closes_index
 
 
 def check_region_location(start_region, end_region, region):
@@ -123,12 +124,12 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
         bar_line_top = min([r for r, c in bar_line])
         bar_line_bot = max([r for r, c in bar_line])
         bar_line_height = bar_line_bot - bar_line_top + 1
-        closest_clef, closest_clef_col = find_closest_region(bar_line, clefs)
+        closest_clef, closest_clef_col, closest_index = find_closest_region(bar_line, clefs)
         if closest_clef is not None and check_region_location(bar_line, bar_lines[index + 1], closest_clef):
             start_region = closest_clef
         else:
             start_region = bar_line
-        closest_region, closest_col = find_closest_region(start_region, regions)
+        closest_region, closest_col, closest_index = find_closest_region(start_region, regions)
         if closest_region is not None and check_region_location(start_region, bar_lines[index + 1], closest_region):
             closest_region_top = min([r for r, c in closest_region])
             closest_region_bot = max([r for r, c in closest_region])
@@ -146,7 +147,8 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                     # Time signature's top and bottom numbers are separate regions, get another one
                     closest_region_copy = closest_region[:]
                     closest_region_top_copy = closest_region_top
-                    closest_region, closest_col = find_closest_region(start_region, regions, [closest_region])
+                    closest_region, closest_col, closest_index = \
+                        find_closest_region(start_region, regions, [closest_region])
                     if closest_region is not None and \
                             check_region_location(start_region, bar_lines[index + 1], closest_region):
                         closest_region_top = min([r for r, c in closest_region])
@@ -175,10 +177,10 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                         template_filepaths = search_for_templates("time")
                     best_matches = []
                     for image in region_images:
-                        best_matches += template_match(image,
-                                                       template_filepaths=template_filepaths,
-                                                       resize=True, print_results=False)
-                    if min_match <= best_matches[0] and min_match <= best_matches[1]:
+                        best_matches += [template_match(image,
+                                                        template_filepaths=template_filepaths,
+                                                        resize=True, print_results=False)]
+                    if min_match <= best_matches[0][1] and min_match <= best_matches[1][1]:
                         time_signatures += [(closest_region, best_matches)]
                     elif full_region_image is not None:
                         best_match = template_match(full_region_image,
@@ -524,10 +526,10 @@ def get_possible_whole_note_regions(regions, bar_lines, clefs, time_signatures, 
     for bar_line in bar_lines:
         closest_region = None
         diff = tolerance * staff_spacing + 1
-        closest_time_signature, closest_col = \
+        closest_time_signature, closest_col, closest_index = \
             find_closest_region(bar_line, time_signatures)
         if closest_time_signature is None:
-            closest_clef, closest_col = find_closest_region(bar_line, clefs)
+            closest_clef, closest_col, closest_index = find_closest_region(bar_line, clefs)
             if closest_clef is None:
                 for region in regions:
                     region_left = min([c for r, c in region])
@@ -537,10 +539,10 @@ def get_possible_whole_note_regions(regions, bar_lines, clefs, time_signatures, 
                         to_remove += [region]
                         break
             else:
-                closest_region, closest_col = find_closest_region(closest_clef, possible_non_whole_note_regions)
+                closest_region, closest_col, closest_index = find_closest_region(closest_clef, possible_non_whole_note_regions)
                 diff = closest_col - max([c for r, c in closest_clef])
         else:
-            closest_region, closest_col = find_closest_region(closest_time_signature, possible_non_whole_note_regions)
+            closest_region, closest_col, closest_index = find_closest_region(closest_time_signature, possible_non_whole_note_regions)
             diff = closest_col - max([c for r, c in closest_time_signature])
         if closest_region is not None and diff < tolerance * staff_spacing:
             to_remove += [closest_region]
@@ -632,3 +634,49 @@ def find_rests(image, regions, bar_lines, crotchet_min_match=0.55, min_match=0.7
 
 def remove_rests(images, white_pixels, regions):
     remove_white_pixels(images, white_pixels, regions)
+
+
+def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
+                accidentals, dots, whole_notes, rests):
+    print("Analysis of staff %s" % (index + 1))
+    for index, bar_line in enumerate(bar_lines):
+        print("Bar Line %s" % (index + 1))
+        if index + 1 < len(bar_lines):
+            bar_line_left = min([c for r, c in bar_line])
+            next_bar_line_left = min([c for r, c in bar_lines[index + 1]])
+            closest_region, closest_col, closest_index = find_closest_region(bar_line, [clef[0] for clef in clefs])
+            if next_bar_line_left > closest_col > bar_line_left:
+                clef = clefs[closest_index]
+                clef = clef[1]
+                clef = clef[0]
+                clef = clef.split('/')[-1]
+                clef = clef.split('_')[0]
+
+                if clef == "g":
+                    print("G-Clef")
+                elif clef == "f":
+                    print("F-Clef")
+                elif clef == "c":
+                    print("C-Clef")
+                else:
+                    print("Unknown clef!")
+
+            closest_region, closest_col, closest_index = \
+                find_closest_region(bar_line, [time_signature[0] for time_signature in time_signatures])
+            if next_bar_line_left > closest_col > bar_line_left:
+                time_signature = time_signatures[closest_index]
+                time_signature = time_signature[1]
+                if type(time_signature) is list:
+                    top = time_signature[0][0]
+                    top = top.split('/')[-1]
+                    top = top.split('_')[0]
+                    bot = time_signature[1][0]
+                    bot = bot.split('/')[-1]
+                    bot = bot.split('_')[0]
+                    print("Time: %s/%s" % (top, bot))
+                else:
+                    time_signature = time_signature[0]
+                    time_signature = time_signature.split('/')[-1]
+                    time_signature = time_signature.split('_')[0]
+                    print("Time: %s" % time_signature)
+
