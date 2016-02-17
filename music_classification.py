@@ -60,7 +60,7 @@ def get_clefs(staff_image, regions, bar_lines, min_match=0.75):
         bar_line = bar_lines[index]
         bar_line_height = max([r for r, c in bar_line]) - min([r for r, c in bar_line]) + 1
         closest_region, closest_col, closest_index = find_closest_region(bar_line, regions)
-        if closest_region is not None and check_region_location(bar_line, bar_lines[index+1],
+        if closest_region is not None and check_region_location(bar_line, bar_lines[index + 1],
                                                                 closest_region, bar_line_height / 4.):
             reg_height, reg_width = get_region_image(staff_image, closest_region).shape[:2]
             if reg_height > bar_line_height / 2.:
@@ -130,13 +130,13 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, t
         bar_line_bot = max([r for r, c in bar_line])
         bar_line_height = bar_line_bot - bar_line_top + 1
         closest_clef, closest_clef_col, closest_index = find_closest_region(bar_line, clefs)
-        if closest_clef is not None and check_region_location(bar_line, bar_lines[index+1],
+        if closest_clef is not None and check_region_location(bar_line, bar_lines[index + 1],
                                                               closest_clef, bar_line_height / 4.):
             start_region = closest_clef
         else:
             start_region = bar_line
         closest_region, closest_col, closest_index = find_closest_region(start_region, regions)
-        if closest_region is not None and check_region_location(start_region, bar_lines[index+1],
+        if closest_region is not None and check_region_location(start_region, bar_lines[index + 1],
                                                                 closest_region, 0):
             closest_region_top = min([r for r, c in closest_region])
             closest_region_bot = max([r for r, c in closest_region])
@@ -158,15 +158,15 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, t
                     closest_region, closest_col, closest_index = \
                         find_closest_region(start_region, regions, [closest_region])
                     if closest_region is not None and \
-                            check_region_location(start_region, bar_lines[index+1],
+                            check_region_location(start_region, bar_lines[index + 1],
                                                   closest_region, 0):
                         closest_region_top = min([r for r, c in closest_region])
                         closest_region_bot = max([r for r, c in closest_region])
                         closest_region_left = min([c for r, c in closest_region])
                         closest_region_height = closest_region_bot - closest_region_top + 1
                         if closest_region_left < closest_region_right_copy and \
-                                closest_region_top >= bar_line_top - tolerance and \
-                                closest_region_bot <= bar_line_bot + tolerance:
+                                        closest_region_top >= bar_line_top - tolerance and \
+                                        closest_region_bot <= bar_line_bot + tolerance:
                             if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance:
                                 raise Exception("Second time signature number is bigger than half staff height")
                             if closest_region_top_copy < closest_region_top:
@@ -675,8 +675,9 @@ def remove_rests(images, white_pixels, regions):
 
 
 def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
-                accidentals, dots, whole_notes, rests, staff_spacing):
-    print("Analysis of staff %s" % (index + 1))
+                accidentals, dots, whole_notes, rests, staff, staff_spacing, staff_distance):
+    rel_staff = get_rel_staff(staff, staff_distance)
+    print("Analysis results of staff %s" % (index + 1))
     for index, bar_line in enumerate(bar_lines):
         print("Bar Line %s" % (index + 1))
         print bar_line
@@ -734,7 +735,7 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
             for accidental in sorted_accidentals:
                 col = accidental[0]
                 if (len(sorted_notes) == 0 or col < sorted_notes[0][0]) and \
-                    (len(sorted_whole_notes) == 0 or col < sorted_whole_notes[0][0]) and \
+                        (len(sorted_whole_notes) == 0 or col < sorted_whole_notes[0][0]) and \
                         (len(sorted_rests) == 0 or col < sorted_rests[0][0]):
 
                     if len(sorted_notes) > 0:
@@ -774,19 +775,71 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                     print("\t\tcolumn: %s" % note[0])
                     print("\t\theight: %s" % (note[1][1][1]))
                     print("\t\tduration: %s" % 1)
+                    min_note_c = note[0]
+                    max_note_c = max([c for r, c in note[1][1][0]])
+                    note_rows = [r for r, c in note[1][1][0]]
+                    prolonged = False
+                    for dot in sorted_dots:
+                        if staff_spacing * 1.5 > dot[0] - max_note_c > 0:
+                            for r, c in dot[1][0]:
+                                if r in note_rows:
+                                    sorted_dots.remove(dot)
+                                    prolonged = True
+                                    print("\t\tprolonged duration")
+                                    break
+                            if prolonged:
+                                break
+                    for accidental in sorted_accidentals:
+                        max_accidental_c = max([c for r, c in accidental[1][0]])
+                        if 0 < min_note_c - max_accidental_c < staff_spacing * 2:
+                            for r, c in accidental[1][0]:
+                                if r in note_rows:
+                                    acc = accidental[1][1][0]
+                                    acc = acc.split('/')[-1]
+                                    acc = ' '.join(acc.split('_')[:-1])
+                                    print("\t\taccidental: %s" % acc)
+                                    sorted_accidentals.remove(accidental)
+
                 else:
                     subnotes = note[1][1][2]
+                    region = note[1][1][0]
+                    region_min_c = min([c for r, c in region])
+                    region_max_c = max([c for r, c in region])
+                    region_min_r = min([r for r, c in region])
+                    region_max_r = max([r for r, c in region])
                     for subnote in subnotes:
                         print("\tstem note")
-                        print("\t\tcolumn: %s" % (note[0] + subnote[0]))
+                        note_col = note[0] + subnote[0]
+                        print("\t\tcolumn: %s" % note_col)
                         print("\t\theight: %s" % subnote[1])
                         print("\t\tduration: %s" % subnote[3])
+                        for dot in sorted_dots:
+                            dot_min_r = min([r for r, c in dot[1][0]])
+                            if staff_spacing * 2.5 > dot[0] - note_col > 0 \
+                                    and region_min_r < dot_min_r < region_max_r:
+                                dot_height = dot_min_r - rel_staff[0][0]
+                                dot_height /= staff_spacing
+                                if abs(dot_height - subnote[1]) < 1:
+                                    sorted_dots.remove(dot)
+                                    print("\t\tprolonged duration")
+                                    break
 
-
-
-
-
-
+                        for accidental in sorted_accidentals:
+                            max_accidental_c = max([c for r, c in accidental[1][0]])
+                            min_accidental_r = min([r for r, c in accidental[1][0]])
+                            center_accidental_r =\
+                                (max([r for r, c in accidental[1][0]]) - min_accidental_r) / 2 + min_accidental_r
+                            if 0 < note_col - max_accidental_c < staff_spacing * 2 and \
+                                    region_min_r < center_accidental_r < region_max_r:
+                                acc_height = center_accidental_r - rel_staff[0][0]
+                                acc_height /= staff_spacing
+                                if abs(acc_height - subnote[1]) <= 0.5:
+                                    acc = accidental[1][1][0]
+                                    acc = acc.split('/')[-1]
+                                    acc = ' '.join(acc.split('_')[:-1])
+                                    print("\t\taccidental: %s" % acc)
+                                    sorted_accidentals.remove(accidental)
+                # dots, accidentals and rests
 
 
 def get_sorted_bar_objects(objects, min_c, max_c):

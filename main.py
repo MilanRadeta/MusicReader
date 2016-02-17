@@ -150,10 +150,10 @@ def remove_rests(images, rests, regions):
 
 
 def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
-                accidentals, dots, whole_notes, rests, staff_spacing):
+                accidentals, dots, whole_notes, rests, staff, staff_spacing, staff_distance):
     print("Exporting data...")
     return mc.export_data(index, bar_lines, clefs, time_signatures, endings, notes,
-                          accidentals, dots, whole_notes, rests, staff_spacing)
+                          accidentals, dots, whole_notes, rests, staff, staff_spacing, staff_distance)
 
 
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
@@ -226,7 +226,7 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     remove_rests([staff_image], [rest[0] for rest in rests], [regions])
 
     export_data(index, bar_lines, clefs, time_signatures, endings, notes,
-                accidentals, dots, whole_notes, rests, avg_staff_spacing)
+                accidentals, dots, whole_notes, rests, staff, avg_staff_spacing, avg_staff_distance)
     imp.display_image(staff_copy)
     imp.display_image(staff_image)
 
