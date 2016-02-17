@@ -119,12 +119,12 @@ def remove_accidentals(images, accidentals, regions):
     return mc.remove_accidentals(images, accidentals, regions)
 
 
-def find_duration_dots(image, regions, staff_spacing):
+def find_dots(image, regions, staff_spacing):
     print("Finding duration dots...")
     return mc.find_duration_dots(image, regions, staff_spacing)
 
 
-def remove_duration_dots(images, dots, regions):
+def remove_dots(images, dots, regions):
     return mc.remove_duration_dots(images, dots, regions)
 
 
@@ -178,6 +178,30 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     clefs = get_clefs(staff_image, vertical_regions, bar_lines)
     remove_clefs([staff_image, img_vert_objects, img_vert_lines], clefs, vertical_regions)
 
+    endings = get_endings(staff_image, vertical_regions, staff[0][0] - staff_image_top)
+    remove_endings([staff_image, img_vert_objects, img_vert_lines],
+                   endings, vertical_regions)
+
+    regions = find_regions(staff_image, pixel_span=1, eight_way=False)[1]
+    dots = find_dots(staff_image, regions, avg_staff_spacing)
+    remove_dots([staff_image], dots, [regions])
+
+    img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 3.5)
+    img_vert_objects, vertical_regions = \
+        find_vertical_regions(staff_image, img_vert_lines,
+                              avg_staff_spacing, pixel_span=2, eight_way=True)
+    notes = find_vertical_notes(img_vert_objects, vertical_regions, staff,
+                                avg_staff_spacing, avg_staff_distance)
+    remove_vertical_notes([staff_image, img_vert_objects, img_vert_lines],
+                          notes, vertical_regions)
+
+    img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 1.5)
+    img_vert_objects, vertical_regions = \
+        find_vertical_regions(staff_image, img_vert_lines,
+                              avg_staff_spacing, pixel_span=1, eight_way=True)
+    accidentals = find_accidentals(img_vert_objects, vertical_regions)
+    remove_accidentals([staff_image], accidentals, None)
+
     img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
                               avg_staff_spacing, pixel_span=2)
@@ -186,36 +210,12 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     remove_time_signatures([staff_image, img_vert_objects, img_vert_lines],
                            time_signatures, vertical_regions)
 
-    endings = get_endings(staff_image, vertical_regions, staff[0][0] - staff_image_top)
-    remove_endings([staff_image, img_vert_objects, img_vert_lines],
-                   endings, vertical_regions)
-
-    img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 3.5)
-    img_vert_objects, vertical_regions = \
-        find_vertical_regions(staff_image, img_vert_lines,
-                              avg_staff_spacing, pixel_span=1, eight_way=True)
-    notes = find_vertical_notes(img_vert_objects, vertical_regions, staff,
-                                avg_staff_spacing, avg_staff_distance)
-    remove_vertical_notes([staff_image, img_vert_objects, img_vert_lines],
-                          notes, vertical_regions)
-
-    img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 2)
-    img_vert_objects, vertical_regions = \
-        find_vertical_regions(staff_image, img_vert_lines,
-                              avg_staff_spacing, pixel_span=1, eight_way=True)
-    accidentals = find_accidentals(img_vert_objects, vertical_regions)
-    remove_accidentals([staff_image], accidentals, None)
-
-    regions = find_regions(staff_image, pixel_span=1)[1]
-    dots = find_duration_dots(staff_image, regions, avg_staff_spacing)
-    remove_duration_dots([staff_image], dots, [regions])
-
     remove_ledgers([staff_image], regions, staff, avg_staff_distance)
 
     regions = find_regions(staff_image, pixel_span=3)[1]
     whole_notes = find_whole_notes(staff_image, regions, bar_lines, [clef[0] for clef in clefs],
-                     [time_signature[0] for time_signature in time_signatures],
-                     staff, avg_staff_spacing, avg_staff_distance)
+                                   [time_signature[0] for time_signature in time_signatures],
+                                   staff, avg_staff_spacing, avg_staff_distance)
     remove_whole_notes([staff_image], [note[0] for note in whole_notes], [regions])
 
     rests = find_rests(staff_image, regions, bar_lines)
@@ -230,8 +230,8 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
 def perform_recognition(image_name):
     org_image = load_image(image_name)
     img_gray = image_gray(org_image)
-    img_otsu = image_bin_adaptive_gauss(img_gray, 7)
-    inv_img = invert(img_otsu)
+    img_bin = imp.image_bin_adaptive(img_gray, 9)
+    inv_img = invert(img_bin)
     lines, line_distances, avg_staff_spacing,\
         staff_distances, avg_staff_distance = find_lines(inv_img)
     img_wo_lines = remove_lines(inv_img, lines)

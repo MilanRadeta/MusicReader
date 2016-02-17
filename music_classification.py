@@ -118,7 +118,7 @@ def check_region_location(start_region, end_region, region, staff_spacing, facto
     min_end_reg_col = max([c for r, c in end_region])
     min_reg_col = min([c for r, c in region])
     distance = min_reg_col - max_start_reg_col
-    return distance <= staff_spacing * factor and min_reg_col < min_end_reg_col
+    return (factor == 0 or staff_spacing == 0 or distance <= staff_spacing * factor) and min_reg_col < min_end_reg_col
 
 
 def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, tolerance=0):
@@ -137,12 +137,11 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, t
             start_region = bar_line
         closest_region, closest_col, closest_index = find_closest_region(start_region, regions)
         if closest_region is not None and check_region_location(start_region, bar_lines[index+1],
-                                                                closest_region, bar_line_height / 4.):
+                                                                closest_region, 0):
             closest_region_top = min([r for r, c in closest_region])
             closest_region_bot = max([r for r, c in closest_region])
             closest_region_height = closest_region_bot - closest_region_top + 1
             if closest_region_top >= bar_line_top - tolerance and closest_region_bot <= bar_line_bot + tolerance:
-                imp.display_image(get_region_image(staff_image, closest_region))
                 region_images = []
                 full_region_image = None
                 if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance \
@@ -155,15 +154,18 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, t
                     # Time signature's top and bottom numbers are separate regions, get another one
                     closest_region_copy = closest_region[:]
                     closest_region_top_copy = closest_region_top
+                    closest_region_right_copy = max([c for r, c in closest_region])
                     closest_region, closest_col, closest_index = \
                         find_closest_region(start_region, regions, [closest_region])
                     if closest_region is not None and \
                             check_region_location(start_region, bar_lines[index+1],
-                                                  closest_region, bar_line_height / 4.):
+                                                  closest_region, 0):
                         closest_region_top = min([r for r, c in closest_region])
                         closest_region_bot = max([r for r, c in closest_region])
+                        closest_region_left = min([c for r, c in closest_region])
                         closest_region_height = closest_region_bot - closest_region_top + 1
-                        if closest_region_top >= bar_line_top - tolerance and \
+                        if closest_region_left < closest_region_right_copy and \
+                                closest_region_top >= bar_line_top - tolerance and \
                                 closest_region_bot <= bar_line_bot + tolerance:
                             if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance:
                                 raise Exception("Second time signature number is bigger than half staff height")
@@ -548,10 +550,12 @@ def get_possible_whole_note_regions(regions, bar_lines, clefs, time_signatures, 
                         to_remove += [region]
                         break
             else:
-                closest_region, closest_col, closest_index = find_closest_region(closest_clef, possible_non_whole_note_regions)
+                closest_region, closest_col, closest_index = \
+                    find_closest_region(closest_clef, possible_non_whole_note_regions)
                 diff = closest_col - max([c for r, c in closest_clef])
         else:
-            closest_region, closest_col, closest_index = find_closest_region(closest_time_signature, possible_non_whole_note_regions)
+            closest_region, closest_col, closest_index = \
+                find_closest_region(closest_time_signature, possible_non_whole_note_regions)
             diff = closest_col - max([c for r, c in closest_time_signature])
         if closest_region is not None and diff < tolerance * staff_spacing:
             to_remove += [closest_region]
@@ -711,12 +715,12 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                     if len(sorted_notes) > 0:
                         distance_to_note = sorted_notes[0][0] - col
                     else:
-                        distance_to_note = staff_spacing
+                        distance_to_note = staff_spacing + 1
 
                     if len(sorted_whole_notes) > 0:
                         distance_to_whole_note = sorted_whole_notes[0][0] - col
                     else:
-                        distance_to_whole_note = staff_spacing
+                        distance_to_whole_note = staff_spacing + 1
 
                     if min([distance_to_note, distance_to_whole_note]) > staff_spacing:
                         key_accidentals += [accidental]
@@ -725,9 +729,10 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                 print("Key Accidentals:")
                 for accidental in key_accidentals:
                     sorted_accidentals.remove(accidental)
-                    acc = accidental[1][0]
+                    acc = accidental[1][1][0]
                     acc = acc.split('/')[-1]
-                    acc = acc.split('_')[:-1]
+                    acc = ' '.join(acc.split('_')[:-1])
+                    print(acc)
 
 
 
