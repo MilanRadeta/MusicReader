@@ -150,9 +150,10 @@ def remove_rests(images, rests, regions):
 
 
 def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
-                accidentals, dots, whole_notes, rests):
+                accidentals, dots, whole_notes, rests, staff_spacing):
+    print("Exporting data...")
     return mc.export_data(index, bar_lines, clefs, time_signatures, endings, notes,
-                          accidentals, dots, whole_notes, rests)
+                          accidentals, dots, whole_notes, rests, staff_spacing)
 
 
 def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance):
@@ -160,23 +161,35 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     staff_image_top = staff[0][0] - avg_staff_distance//2
     staff_image_bot = staff[-1][-1] + avg_staff_distance//2
     staff_image = img_wo_lines[staff_image_top: staff_image_bot]
+    staff_copy = staff_image.copy()
+
     img_vert_lines = open_image_vertically(staff_image, avg_staff_spacing)
-    vertical_lines = find_regions(img_vert_lines)[1]
+    vertical_lines = find_regions(img_vert_lines, pixel_span=1, eight_way=False)[1]
+    img_vert_objects, vertical_regions = \
+        find_vertical_regions(staff_image, img_vert_lines,
+                              avg_staff_spacing, pixel_span=1, eight_way=False)
+    bar_lines = get_bar_lines(vertical_regions, vertical_lines, staff)
+    remove_bar_lines([staff_image, img_vert_lines],
+                     bar_lines, [])
+
+    img_vert_objects, vertical_regions = \
+        find_vertical_regions(staff_image, img_vert_lines,
+                              avg_staff_spacing, pixel_span=3)
+    clefs = get_clefs(staff_image, vertical_regions, bar_lines)
+    remove_clefs([staff_image, img_vert_objects, img_vert_lines], clefs, vertical_regions)
+
     img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
                               avg_staff_spacing, pixel_span=2)
-    bar_lines = get_bar_lines(vertical_regions, vertical_lines, staff)
-    remove_bar_lines([staff_image, img_vert_objects, img_vert_lines],
-                     bar_lines, vertical_regions)
-    clefs = get_clefs(staff_image, vertical_regions, bar_lines)
-    remove_clefs([staff_image, img_vert_objects, img_vert_lines], clefs, vertical_regions)
     time_signatures = get_time_signatures(staff_image, vertical_regions, bar_lines,
                                           [clef[0] for clef in clefs])
     remove_time_signatures([staff_image, img_vert_objects, img_vert_lines],
                            time_signatures, vertical_regions)
+
     endings = get_endings(staff_image, vertical_regions, staff[0][0] - staff_image_top)
     remove_endings([staff_image, img_vert_objects, img_vert_lines],
                    endings, vertical_regions)
+
     img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 3.5)
     img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
@@ -185,24 +198,32 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
                                 avg_staff_spacing, avg_staff_distance)
     remove_vertical_notes([staff_image, img_vert_objects, img_vert_lines],
                           notes, vertical_regions)
+
     img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 2)
     img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
                               avg_staff_spacing, pixel_span=1, eight_way=True)
     accidentals = find_accidentals(img_vert_objects, vertical_regions)
     remove_accidentals([staff_image], accidentals, None)
+
     regions = find_regions(staff_image, pixel_span=1)[1]
     dots = find_duration_dots(staff_image, regions, avg_staff_spacing)
     remove_duration_dots([staff_image], dots, [regions])
+
     remove_ledgers([staff_image], regions, staff, avg_staff_distance)
+
     regions = find_regions(staff_image, pixel_span=3)[1]
     whole_notes = find_whole_notes(staff_image, regions, bar_lines, [clef[0] for clef in clefs],
                      [time_signature[0] for time_signature in time_signatures],
                      staff, avg_staff_spacing, avg_staff_distance)
     remove_whole_notes([staff_image], [note[0] for note in whole_notes], [regions])
+
     rests = find_rests(staff_image, regions, bar_lines)
     remove_rests([staff_image], [rest[0] for rest in rests], [regions])
-    export_data(index, bar_lines, clefs, time_signatures, endings, notes, accidentals, dots, whole_notes, rests)
+
+    export_data(index, bar_lines, clefs, time_signatures, endings, notes,
+                accidentals, dots, whole_notes, rests, avg_staff_spacing)
+    imp.display_image(staff_copy)
     imp.display_image(staff_image)
 
 
@@ -217,4 +238,4 @@ def perform_recognition(image_name):
     for index, staff in enumerate(lines):
         analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance)
 
-perform_recognition("test2.png")
+perform_recognition("test3.png")

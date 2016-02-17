@@ -50,23 +50,27 @@ def get_bar_lines(regions, vertical_lines, staff):
 
 
 def remove_bar_lines(images, bar_lines, regions):
-    remove_white_pixels(images, bar_lines, [regions])
+    remove_white_pixels(images, bar_lines, regions)
 
 
-def get_clefs(staff_image, regions, bar_lines, min_match=0.78):
+def get_clefs(staff_image, regions, bar_lines, min_match=0.75):
     template_filepaths = None
     clefs = []
     for index in range(len(bar_lines) - 1):
         bar_line = bar_lines[index]
+        bar_line_height = max([r for r, c in bar_line]) - min([r for r, c in bar_line]) + 1
         closest_region, closest_col, closest_index = find_closest_region(bar_line, regions)
-        if closest_region is not None and check_region_location(bar_line, bar_lines[index + 1], closest_region):
-            if template_filepaths is None:
-                template_filepaths = search_for_templates("clefs")
-            best_match = template_match(get_region_image(staff_image, closest_region),
-                                        template_filepaths=template_filepaths,
-                                        resize=True, print_results=False)
-            if min_match <= best_match[1]:
-                clefs += [(closest_region, best_match)]
+        if closest_region is not None and check_region_location(bar_line, bar_lines[index+1],
+                                                                closest_region, bar_line_height / 4.):
+            reg_height, reg_width = get_region_image(staff_image, closest_region).shape[:2]
+            if reg_height > bar_line_height / 2.:
+                if template_filepaths is None:
+                    template_filepaths = search_for_templates("clefs")
+                best_match = template_match(get_region_image(staff_image, closest_region),
+                                            template_filepaths=template_filepaths,
+                                            resize=True, print_results=False)
+                if min_match <= best_match[1]:
+                    clefs += [(closest_region, best_match)]
     return clefs
 
 
@@ -83,7 +87,8 @@ def remove_white_pixels(images=None, white_regions=None, regions_list=None):
         white_regions = []
     for white_region in white_regions:
         for regions in regions_list:
-            regions.remove(white_region)
+            if white_region in regions:
+                regions.remove(white_region)
         for img in images:
             for r, c in white_region:
                 img[r][c] = 0
@@ -95,28 +100,28 @@ def find_closest_region(ref_region, regions, exceptions=None):
     max_ref_reg_col = max([c for r, c in ref_region])
     closest_region = None
     closest_col = -1
-    closes_index = -1
+    closest_index = -1
     for index, region in enumerate(regions):
         if region not in exceptions:
             reg_cols = [c for r, c in region if c > max_ref_reg_col]
-            if len(reg_cols) > 0:
+            if len(reg_cols) > 0 and len(reg_cols) == len(region):
                 min_clef_col = min(reg_cols)
                 if min_clef_col < closest_col or closest_col == -1:
                     closest_col = min_clef_col
                     closest_region = region
-    return closest_region, closest_col, closes_index
+                    closest_index = index
+    return closest_region, closest_col, closest_index
 
 
-def check_region_location(start_region, end_region, region):
+def check_region_location(start_region, end_region, region, staff_spacing, factor=2.5):
     max_start_reg_col = max([c for r, c in start_region])
-    min_end_reg_col = min([c for r, c in end_region])
-    reg_width = min_end_reg_col - max_start_reg_col
-    min_end_reg_col = min([c for r, c in region])
-    distance = min_end_reg_col - max_start_reg_col
-    return distance < (reg_width / 3.)
+    min_end_reg_col = max([c for r, c in end_region])
+    min_reg_col = min([c for r, c in region])
+    distance = min_reg_col - max_start_reg_col
+    return distance <= staff_spacing * factor and min_reg_col < min_end_reg_col
 
 
-def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, tolerance=2):
+def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, tolerance=0):
     template_filepaths = None
     time_signatures = []
     for index in range(len(bar_lines) - 1):
@@ -125,16 +130,19 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
         bar_line_bot = max([r for r, c in bar_line])
         bar_line_height = bar_line_bot - bar_line_top + 1
         closest_clef, closest_clef_col, closest_index = find_closest_region(bar_line, clefs)
-        if closest_clef is not None and check_region_location(bar_line, bar_lines[index + 1], closest_clef):
+        if closest_clef is not None and check_region_location(bar_line, bar_lines[index+1],
+                                                              closest_clef, bar_line_height / 4.):
             start_region = closest_clef
         else:
             start_region = bar_line
         closest_region, closest_col, closest_index = find_closest_region(start_region, regions)
-        if closest_region is not None and check_region_location(start_region, bar_lines[index + 1], closest_region):
+        if closest_region is not None and check_region_location(start_region, bar_lines[index+1],
+                                                                closest_region, bar_line_height / 4.):
             closest_region_top = min([r for r, c in closest_region])
             closest_region_bot = max([r for r, c in closest_region])
             closest_region_height = closest_region_bot - closest_region_top + 1
             if closest_region_top >= bar_line_top - tolerance and closest_region_bot <= bar_line_bot + tolerance:
+                imp.display_image(get_region_image(staff_image, closest_region))
                 region_images = []
                 full_region_image = None
                 if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance \
@@ -150,7 +158,8 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.75, 
                     closest_region, closest_col, closest_index = \
                         find_closest_region(start_region, regions, [closest_region])
                     if closest_region is not None and \
-                            check_region_location(start_region, bar_lines[index + 1], closest_region):
+                            check_region_location(start_region, bar_lines[index+1],
+                                                  closest_region, bar_line_height / 4.):
                         closest_region_top = min([r for r, c in closest_region])
                         closest_region_bot = max([r for r, c in closest_region])
                         closest_region_height = closest_region_bot - closest_region_top + 1
@@ -637,10 +646,11 @@ def remove_rests(images, white_pixels, regions):
 
 
 def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
-                accidentals, dots, whole_notes, rests):
+                accidentals, dots, whole_notes, rests, staff_spacing):
     print("Analysis of staff %s" % (index + 1))
     for index, bar_line in enumerate(bar_lines):
         print("Bar Line %s" % (index + 1))
+        print bar_line
         if index + 1 < len(bar_lines):
             bar_line_left = min([c for r, c in bar_line])
             next_bar_line_left = min([c for r, c in bar_lines[index + 1]])
@@ -680,3 +690,57 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                     time_signature = time_signature.split('_')[0]
                     print("Time: %s" % time_signature)
 
+            closest_region, closest_col, closest_index = \
+                find_closest_region(bar_line, [ending[0] for ending in endings])
+            if next_bar_line_left > closest_col > bar_line_left:
+                print("Ending")
+
+            sorted_notes = get_sorted_bar_objects(notes, bar_line_left, next_bar_line_left)
+            sorted_whole_notes = get_sorted_bar_objects(whole_notes, bar_line_left, next_bar_line_left)
+            sorted_dots = get_sorted_bar_objects(dots, bar_line_left, next_bar_line_left)
+            sorted_rests = get_sorted_bar_objects(rests, bar_line_left, next_bar_line_left)
+            sorted_accidentals = get_sorted_bar_objects(accidentals, bar_line_left, next_bar_line_left)
+
+            key_accidentals = []
+            for accidental in sorted_accidentals:
+                col = accidental[0]
+                if (len(sorted_notes) == 0 or col < sorted_notes[0][0]) and \
+                    (len(sorted_whole_notes) == 0 or col < sorted_whole_notes[0][0]) and \
+                        (len(sorted_rests) == 0 or col < sorted_rests[0][0]):
+
+                    if len(sorted_notes) > 0:
+                        distance_to_note = sorted_notes[0][0] - col
+                    else:
+                        distance_to_note = staff_spacing
+
+                    if len(sorted_whole_notes) > 0:
+                        distance_to_whole_note = sorted_whole_notes[0][0] - col
+                    else:
+                        distance_to_whole_note = staff_spacing
+
+                    if min([distance_to_note, distance_to_whole_note]) > staff_spacing:
+                        key_accidentals += [accidental]
+
+            if len(key_accidentals) > 0:
+                print("Key Accidentals:")
+                for accidental in key_accidentals:
+                    sorted_accidentals.remove(accidental)
+                    acc = accidental[1][0]
+                    acc = acc.split('/')[-1]
+                    acc = acc.split('_')[:-1]
+
+
+
+
+
+
+
+def get_sorted_bar_objects(objects, min_c, max_c):
+    sorted_objects = []
+    for obj in objects:
+        bar_obj_cols = [c for r, c in obj[0] if max_c > c > min_c]
+        if len(bar_obj_cols) > 0:
+            obj_left = min(bar_obj_cols)
+            sorted_objects += [(obj_left, obj)]
+    sorted_objects = sorted(sorted_objects)
+    return sorted_objects
