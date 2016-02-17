@@ -104,6 +104,7 @@ def image_subtract(image1, image2):
         for col in range(image_width):
             if image2[row, col] == 255:
                 ret_image[row, col] = 0
+    return ret_image
 
 
 def merge_images(images):

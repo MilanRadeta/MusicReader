@@ -236,7 +236,7 @@ def find_avg_thickness(vertical_lines):
 
 
 def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance,
-                        tolerance=None, flag_min_match=0.8, note_head_min_match=0.8):
+                        tolerance=None, flag_min_match=0.7, note_head_min_match=0.8):
     image = org_image.copy()
 
     rel_staff = get_rel_staff(staff, staff_distance)
@@ -378,6 +378,7 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
 
             # recognize note
             print("Recognizing notes' properties...")
+            checked_flags = []
             notes = []
             for note_head, connected_region, line_index, match in note_heads:
                 height = line_index
@@ -394,6 +395,7 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                 for flag, flag_match in flags:
                     if line == flag[1]:
                         flags_and_beams += int(flag_match[0].split('/')[-1].split('_')[0]) / 8
+                        checked_flags += [(flag, flag_match)]
 
                 if flags_and_beams > 0:
                     duration = 1 / 4.
@@ -404,8 +406,32 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
 
                 notes += [(min([c for r, c in connected_region[0]]), height, note_head_type, duration)]
 
-            notes = sorted(notes)
+            for flag in flags:
+                if flag not in checked_flags:
+                    connected_region = flag[0]
+                    min_r = rel_staff[0][-1]
+                    line_index = 0.5
+                    while abs(min_r - org_reg_r) >= staff_spacing // 2:
+                        if min_r > org_reg_r:
+                            min_r -= staff_spacing // 2
+                            line_index -= 0.5
+                        else:
+                            min_r += staff_spacing // 2
+                            line_index += 0.5
+                    min_r -= org_reg_r
+                    min_r = int(min_r)
 
+                    max_r = max([r for r, c in connected_region[0]])
+                    for start_r in range(min_r, max_r, int(staff_spacing // 2)):
+                        sub_region = [value for value in connected_region[0]
+                                      if start_r + staff_spacing >= value[0] >= start_r]
+                        if len(sub_region) > 0:
+                            note_heads += [(sub_region, connected_region, line_index,
+                                            ("templates/note_heads/half_01", 0.8))]
+                            notes += [(min([c for r, c in connected_region[0]]), line_index, "half", 0.5)]
+                        line_index += 0.5
+
+            notes = sorted(notes)
             recognized_notes += [(region, org_reg_c, notes)]
             unrecognized_regions += [(region, connected_regions, separate_regions)]
 
@@ -596,7 +622,6 @@ def find_whole_notes(image, regions, bar_lines, clefs, time_signatures,
                 else:
                     min_r += staff_spacing // 2
                     line_index += 0.5
-            min_r -= reg_top
             min_r = int(min_r)
 
             max_r = max([r for r, c in region])
@@ -732,7 +757,31 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                     acc = accidental[1][1][0]
                     acc = acc.split('/')[-1]
                     acc = ' '.join(acc.split('_')[:-1])
-                    print(acc)
+                    print("\t %s" % acc)
+
+            concat_notes = []
+            for note in sorted_whole_notes:
+                concat_notes += [(note[0], note, 0)]
+            for note in sorted_notes:
+                concat_notes += [(note[0], note, 1)]
+            concat_notes = sorted(concat_notes)
+            if len(concat_notes) > 0:
+                print("Notes:")
+            for note in concat_notes:
+                note_type = note[2]
+                if note_type == 0:
+                    print("\twhole note")
+                    print("\t\tcolumn: %s" % note[0])
+                    print("\t\theight: %s" % (note[1][1][1]))
+                    print("\t\tduration: %s" % 1)
+                else:
+                    subnotes = note[1][1][2]
+                    for subnote in subnotes:
+                        print("\tstem note")
+                        print("\t\tcolumn: %s" % (note[0] + subnote[0]))
+                        print("\t\theight: %s" % subnote[1])
+                        print("\t\tduration: %s" % subnote[3])
+
 
 
 

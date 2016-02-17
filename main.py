@@ -190,14 +190,10 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     img_vert_objects, vertical_regions = \
         find_vertical_regions(staff_image, img_vert_lines,
                               avg_staff_spacing, pixel_span=2, eight_way=True)
-    notes = find_vertical_notes(img_vert_objects, vertical_regions, staff,
-                                avg_staff_spacing, avg_staff_distance)
-    remove_vertical_notes([staff_image, img_vert_objects, img_vert_lines],
-                          notes, vertical_regions)
 
     img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 1.5)
     img_vert_objects, vertical_regions = \
-        find_vertical_regions(staff_image, img_vert_lines,
+        find_vertical_regions(imo.image_subtract(staff_image, img_vert_objects), img_vert_lines,
                               avg_staff_spacing, pixel_span=1, eight_way=True)
     accidentals = find_accidentals(img_vert_objects, vertical_regions)
     remove_accidentals([staff_image], accidentals, None)
@@ -209,6 +205,14 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
                                           [clef[0] for clef in clefs])
     remove_time_signatures([staff_image, img_vert_objects, img_vert_lines],
                            time_signatures, vertical_regions)
+
+    img_vert_objects, vertical_regions = \
+        find_vertical_regions(staff_image, img_vert_lines,
+                              avg_staff_spacing, pixel_span=4, eight_way=True)
+    notes = find_vertical_notes(img_vert_objects, vertical_regions, staff,
+                                avg_staff_spacing, avg_staff_distance)
+    remove_vertical_notes([staff_image, img_vert_objects, img_vert_lines],
+                          notes, vertical_regions)
 
     remove_ledgers([staff_image], regions, staff, avg_staff_distance)
 
