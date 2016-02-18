@@ -261,7 +261,8 @@ def find_avg_thickness(vertical_lines):
 
 
 def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance,
-                        tolerance=None, flag_min_match=0.7, note_head_min_match=0.8):
+                        tolerance=None, flag_min_match=0.7, note_head_min_match=0.8,
+                        half_note_head_min_match=0.65):
     image = org_image.copy()
 
     rel_staff = get_rel_staff(staff, staff_distance)
@@ -278,6 +279,16 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
         template = imp.image_bin_otsu(template)
         template = imp.invert(template)
         note_heads_templates[templateName] = template
+
+    half_note_heads_templates = {}
+
+    for templateName in search_for_templates(["note_heads/half", "note_heads/whole"]):
+        template = imp.load_image(templateName)
+        template = imp.resize_image(template, (int(round(staff_spacing)), int(round(staff_spacing))))
+        template = imp.image_gray(template)
+        template = imp.image_bin_otsu(template)
+        template = imp.invert(template)
+        half_note_heads_templates[templateName] = template
 
     for index, region in enumerate(regions):
         org_reg_c = min([c for r, c in region])
@@ -391,10 +402,13 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                                                     print_results=False)
                         if note_head_min_match <= best_match[1]:
                             note_heads += [(sub_region, connected_region, line_index, best_match)]
-                        elif len(sub_region_img) >= staff_spacing:
-                            # possible half note
-                            note_heads += [(sub_region, connected_region, line_index,
-                                            ("templates/note_heads/half_01", 0.8))]
+                        else:
+                            best_match = template_match(sub_region_img,
+                                                        template_images=half_note_heads_templates,
+                                                        print_results=False)
+                            if half_note_head_min_match <= best_match[1]:
+                                note_heads += [(sub_region, connected_region, line_index,
+                                                ("templates/note_heads/half_01", best_match[1]))]
                     line_index += 0.5
 
             for note_head, connected_region, line_index, match in note_heads:
@@ -451,9 +465,14 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                         sub_region = [value for value in connected_region[0]
                                       if start_r + staff_spacing >= value[0] >= start_r]
                         if len(sub_region) > 0:
-                            note_heads += [(sub_region, connected_region, line_index,
-                                            ("templates/note_heads/half_01", 0.8))]
-                            notes += [(min([c for r, c in connected_region[0]]), line_index, "half", 0.5)]
+                            best_match = template_match(get_region_image(region_image,sub_region),
+                                                        template_images=half_note_heads_templates,
+                                                        print_results=False)
+                            if half_note_head_min_match <= best_match[1]:
+                                note_heads += [(sub_region, connected_region, line_index,
+                                                ("templates/note_heads/half_01", best_match[1]))]
+                                notes += [(min([c for r, c in connected_region[0]]), line_index, "half", 0.5)]
+                            imp.display_image(get_region_image(region_image,sub_region))
                         line_index += 0.5
 
             notes = sorted(notes)
