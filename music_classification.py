@@ -875,10 +875,15 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                 if rest_type == 0.5:
                     rest_reg = rest[1][0]
                     min_rest_r = min([r for r, c in rest_reg])
-                    if min_rest_r in rel_staff[0]:
+                    if min_rest_r in rel_staff[1]:
                         rest_type = 1
                 print("\t\tcolumn: %s" % rest[0])
                 print("\t\tduration: %s" % rest_type)
+                for dot in sorted_dots:
+                    if staff_spacing * 2 > dot[0] - rest[0] > 0:
+                        sorted_dots.remove(dot)
+                        print("\t\tprolonged duration")
+                        break
 
 
 def get_sorted_bar_objects(objects, min_c, max_c):
