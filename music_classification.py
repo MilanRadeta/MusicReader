@@ -705,7 +705,6 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
     print("Analysis results of staff %s" % (index + 1))
     for index, bar_line in enumerate(bar_lines):
         print("Bar Line %s" % (index + 1))
-        print bar_line
         if index + 1 < len(bar_lines):
             bar_line_left = min([c for r, c in bar_line])
             next_bar_line_left = min([c for r, c in bar_lines[index + 1]])
@@ -862,7 +861,6 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                                     acc = ' '.join(acc.split('_')[:-1])
                                     print("\t\taccidental: %s" % acc)
                                     sorted_accidentals.remove(accidental)
-            # rests (+ dots) and repeat dots
             if len(sorted_rests) > 0:
                 print("Rests:")
             for rest in sorted_rests:
@@ -884,6 +882,20 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                         sorted_dots.remove(dot)
                         print("\t\tprolonged duration")
                         break
+            repeat_begin = []
+            repeat_end = []
+            for dot in sorted_dots:
+                if dot[0] - bar_line_left < 2 * staff_spacing:
+                    repeat_begin += [dot]
+                elif next_bar_line_left - dot[0] < 2 * staff_spacing:
+                    repeat_end += [dot]
+
+            if len(repeat_begin) == 2:
+                print("Repeat Begin")
+            if len(repeat_end) == 2:
+                print("Repeat End")
+
+                # repeat dots
 
 
 def get_sorted_bar_objects(objects, min_c, max_c):
