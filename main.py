@@ -194,7 +194,7 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     img_vert_lines = imo.open_image_vertically(staff_image, avg_staff_spacing, 1.5)
     img_vert_objects, vertical_regions = \
         find_vertical_regions(imo.image_subtract(staff_image, img_vert_objects), img_vert_lines,
-                              avg_staff_spacing, pixel_span=1, eight_way=True)
+                              avg_staff_spacing, pixel_span=1, eight_way=False)
     accidentals = find_accidentals(img_vert_objects, vertical_regions)
     remove_accidentals([staff_image], accidentals, None)
 
@@ -216,14 +216,15 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
 
     remove_ledgers([staff_image], regions, staff, avg_staff_distance)
 
+    regions = find_regions(staff_image, pixel_span=2)[1]
+    rests = find_rests(staff_image, regions, bar_lines)
+    remove_rests([staff_image], [rest[0] for rest in rests], [regions])
+
     regions = find_regions(staff_image, pixel_span=3)[1]
     whole_notes = find_whole_notes(staff_image, regions, bar_lines, [clef[0] for clef in clefs],
                                    [time_signature[0] for time_signature in time_signatures],
                                    staff, avg_staff_spacing, avg_staff_distance)
     remove_whole_notes([staff_image], [note[0] for note in whole_notes], [regions])
-
-    rests = find_rests(staff_image, regions, bar_lines)
-    remove_rests([staff_image], [rest[0] for rest in rests], [regions])
 
     export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                 accidentals, dots, whole_notes, rests, staff, avg_staff_spacing, avg_staff_distance)

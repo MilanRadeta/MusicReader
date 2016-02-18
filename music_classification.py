@@ -136,11 +136,13 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, t
         else:
             start_region = bar_line
         closest_region, closest_col, closest_index = find_closest_region(start_region, regions)
+
         if closest_region is not None and check_region_location(start_region, bar_lines[index + 1],
                                                                 closest_region, 0):
             closest_region_top = min([r for r, c in closest_region])
             closest_region_bot = max([r for r, c in closest_region])
             closest_region_height = closest_region_bot - closest_region_top + 1
+
             if closest_region_top >= bar_line_top - tolerance and closest_region_bot <= bar_line_bot + tolerance:
                 region_images = []
                 full_region_image = None
@@ -191,13 +193,36 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, t
                         best_matches += [template_match(image,
                                                         template_filepaths=template_filepaths,
                                                         resize=True, print_results=False)]
-                    if min_match <= best_matches[0][1] and min_match <= best_matches[1][1]:
+                    try:
+                        top = best_matches[0][0]
+                        top = top.split('/')[-1]
+                        top = top.split('_')[0]
+                        top = int(top)
+
+                        bot = best_matches[1][0]
+                        bot = bot.split('/')[-1]
+                        bot = bot.split('_')[0]
+                        bot = int(bot)
+                        success = min_match <= best_matches[0][1] and min_match <= best_matches[1][1]
+                    except:
+                        success = False
+
+                    if success:
                         time_signatures += [(closest_region, best_matches)]
                     elif full_region_image is not None:
                         best_match = template_match(full_region_image,
                                                     template_filepaths=template_filepaths,
                                                     resize=True, print_results=False)
-                        if min_match <= best_match:
+                        try:
+                            sign = best_match[0]
+                            sign = sign.split('/')[-1]
+                            sign = sign.split('_')[0]
+                            sign = int(sign)
+                            success = False
+                        except:
+                            success = min_match <= best_match[1]
+
+                        if success:
                             time_signatures += [(closest_region, best_match)]
     return time_signatures
 
@@ -643,7 +668,7 @@ def remove_whole_notes(images, whole_notes, regions):
     remove_white_pixels(images, whole_notes, regions)
 
 
-def find_rests(image, regions, bar_lines, crotchet_min_match=0.55, min_match=0.7):
+def find_rests(image, regions, bar_lines, crotchet_min_match=0.68, min_match=0.7):
     rests = []
     crotchet_templates = search_for_templates("rests/4")
     all_templates = search_for_templates("rests")
@@ -803,8 +828,6 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                 else:
                     subnotes = note[1][1][2]
                     region = note[1][1][0]
-                    region_min_c = min([c for r, c in region])
-                    region_max_c = max([c for r, c in region])
                     region_min_r = min([r for r, c in region])
                     region_max_r = max([r for r, c in region])
                     for subnote in subnotes:
@@ -839,7 +862,23 @@ def export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                                     acc = ' '.join(acc.split('_')[:-1])
                                     print("\t\taccidental: %s" % acc)
                                     sorted_accidentals.remove(accidental)
-                # dots, accidentals and rests
+            # rests (+ dots) and repeat dots
+            if len(sorted_rests) > 0:
+                print("Rests:")
+            for rest in sorted_rests:
+                print("\trest")
+                rest_type = rest[1][1][0]
+                rest_type = rest_type.split('/')[-1]
+                rest_type = rest_type.split('_')[0]
+                rest_type = int(rest_type)
+                rest_type = 1. / rest_type
+                if rest_type == 0.5:
+                    rest_reg = rest[1][0]
+                    min_rest_r = min([r for r, c in rest_reg])
+                    if min_rest_r in rel_staff[0]:
+                        rest_type = 1
+                print("\t\tcolumn: %s" % rest[0])
+                print("\t\tduration: %s" % rest_type)
 
 
 def get_sorted_bar_objects(objects, min_c, max_c):
