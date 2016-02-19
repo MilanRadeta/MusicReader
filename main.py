@@ -3,6 +3,7 @@ import image_operations as imo
 import staff_lines as sl
 import image_region_recognition as irr
 import music_classification as mc
+import os
 
 
 def load_image(image_name):
@@ -121,11 +122,11 @@ def remove_accidentals(images, accidentals, regions):
 
 def find_dots(image, regions, staff_spacing):
     print("Finding duration dots...")
-    return mc.find_duration_dots(image, regions, staff_spacing)
+    return mc.find_dots(image, regions, staff_spacing)
 
 
 def remove_dots(images, dots, regions):
-    return mc.remove_duration_dots(images, dots, regions)
+    return mc.remove_duration_dots(images, [dot[0] for dot in dots], regions)
 
 
 def remove_ledgers(images, regions, staff, staff_distance):
@@ -229,7 +230,6 @@ def analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_dista
     export_data(index, bar_lines, clefs, time_signatures, endings, notes,
                 accidentals, dots, whole_notes, rests, staff, avg_staff_spacing, avg_staff_distance)
     imp.display_image(staff_copy)
-    imp.display_image(staff_image)
 
 
 def perform_recognition(image_name):
@@ -243,4 +243,10 @@ def perform_recognition(image_name):
     for index, staff in enumerate(lines):
         analyze_staff(img_wo_lines, staff, index, avg_staff_spacing, avg_staff_distance)
 
-perform_recognition("test3.png")
+for f in os.listdir("test_dataset"):
+    try:
+        print("File: %s" % f)
+        perform_recognition("test_dataset/%s" % f)
+    except Exception as e:
+        print("ERROR!")
+        print(e)

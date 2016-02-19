@@ -38,6 +38,8 @@ def get_region_image(image, region):
 
 def get_bar_lines(regions, vertical_lines, staff):
     bar_lines = []
+    regions = sorted(regions)
+    vertical_lines = sorted(vertical_lines)
     for region in regions:
         if region in vertical_lines:
             min_row = min([r for r, c in region])
@@ -167,8 +169,8 @@ def get_time_signatures(staff_image, regions, bar_lines, clefs, min_match=0.7, t
                         closest_region_left = min([c for r, c in closest_region])
                         closest_region_height = closest_region_bot - closest_region_top + 1
                         if closest_region_left < closest_region_right_copy and \
-                                        closest_region_top >= bar_line_top - tolerance and \
-                                        closest_region_bot <= bar_line_bot + tolerance:
+                                closest_region_top >= bar_line_top - tolerance and \
+                                closest_region_bot <= bar_line_bot + tolerance:
                             if bar_line_height + tolerance > closest_region_height > bar_line_height / 2 + tolerance:
                                 raise Exception("Second time signature number is bigger than half staff height")
                             if closest_region_top_copy < closest_region_top:
@@ -357,6 +359,7 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                             distance = min_beam_row - max_row
                         if distance is not None and distance < staff_spacing:
                             half_beams += [sub_region]
+                            break
 
             for half_beam in half_beams:
                 connected_regions.remove(half_beam)
@@ -472,7 +475,6 @@ def find_vertical_notes(org_image, regions, staff, staff_spacing, staff_distance
                                 note_heads += [(sub_region, connected_region, line_index,
                                                 ("templates/note_heads/half_01", best_match[1]))]
                                 notes += [(min([c for r, c in connected_region[0]]), line_index, "half", 0.5)]
-                            imp.display_image(get_region_image(region_image,sub_region))
                         line_index += 0.5
 
             notes = sorted(notes)
@@ -536,30 +538,19 @@ def remove_accidentals(images, accidentals, regions):
     return remove_white_pixels(images, [accidental[0] for accidental in accidentals], regions)
 
 
-def find_duration_dots(image, regions, staff_spacing, tolerance=2):
+def find_dots(image, regions, staff_spacing, tolerance=2):
     dots = []
-    dot_templates = {}
-    for templateName in search_for_templates("dots"):
-        template = imp.load_image(templateName)
-        template = imp.resize_image(template, (int(round(staff_spacing / 2)), int(round(staff_spacing / 2))))
-        template = imp.image_gray(template)
-        template = imp.image_bin_otsu(template)
-        template = imp.invert(template)
-        dot_templates[templateName] = template
 
     for region in regions:
         region_image = get_region_image(image, region)
         height, width = region_image.shape[:2]
         if height <= staff_spacing / 2 + tolerance and width <= staff_spacing / 2 + tolerance:
-            best_match = template_match(region_image,
-                                        template_images=dot_templates,
-                                        print_results=False)
-            dots += [(region, best_match)]
+            dots += [(region, None)]
     return dots
 
 
 def remove_duration_dots(images, dots, regions):
-    return remove_white_pixels(images, [dot[0] for dot in dots], regions)
+    return remove_white_pixels(images, dots, regions)
 
 
 def remove_ledgers(images, regions, staff, staff_distance, tolerance=1):
